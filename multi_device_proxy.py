@@ -28,10 +28,9 @@ def load_config(config_path=None):
     if config_path is None:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         search_paths = [
+            "/etc/multi-hid-proxy/config.json",      # システム設定ディレクトリ
             os.path.join(script_dir, "config.json"),  # スクリプトと同じディレクトリ
-            "/usr/local/bin/config.json",  # システムインストール場所
-            "/etc/multi-hid-proxy/config.json",  # システム設定ディレクトリ
-            "config.json"  # カレントディレクトリ
+            "config.json"                             # カレントディレクトリ
         ]
         
         config_path = None
