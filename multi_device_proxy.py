@@ -356,6 +356,9 @@ class MouseProxy:
 
         try:
             os.write(self.hid_fd, buffer)
+        except BlockingIOError:
+            self.log.warning(f"HIDデバイス {self.hid_output_path} への書き込みがブロックされました。レポートを破棄します。")
+            return
         except OSError as e:
             self.log.error(f"{self.hid_output_path}への書き込みでOSError: {e}")
             if self.hid_fd:
@@ -571,6 +574,9 @@ class KeyboardProxy:
 
         try:
             os.write(self.hid_fd, buffer)
+        except BlockingIOError:
+            self.log.warning(f"HIDデバイス {self.hid_output_path} への書き込みがブロックされました。レポートを破棄します。")
+            return
         except OSError as e:
             self.log.error(f"{self.hid_output_path}への書き込みでOSError: {e}")
             if self.hid_fd:
@@ -819,9 +825,22 @@ async def device_monitor(loop):
     MOUSE_DEVICE_NAME_PATTERN = re.compile(r'HHKB-Studio[1-4] Mouse|Logitech.*')
     KEYBOARD_DEVICE_NAME_PATTERN = re.compile(r'HHKB-Studio[1-4] Keyboard|HHKB-Hybrid.*|PFU.*')
     
-    # HID出力パスの定義
-    KEYBOARD_HID_OUTPUTS = [f'/dev/hidg{i}' for i in range(0, 1)]
-    MOUSE_HID_OUTPUTS = [f'/dev/hidg{i}' for i in range(1, 3)]
+    # config.jsonからHIDパスを読み込む
+    hid_paths = CONFIG.get("hid_paths", {})
+    
+    # キーボードパスの読み込み（後方互換性のため "keyboard" もチェック）
+    if "keyboard_outputs" in hid_paths:
+        KEYBOARD_HID_OUTPUTS = hid_paths["keyboard_outputs"]
+    elif "keyboard" in hid_paths:
+        KEYBOARD_HID_OUTPUTS = [hid_paths["keyboard"]] # リストに変換
+    else:
+        KEYBOARD_HID_OUTPUTS = [] # デフォルトは空
+        logging.warning("設定ファイルにキーボードのHIDパスが見つかりません。")
+
+    # マウスパスの読み込み
+    MOUSE_HID_OUTPUTS = hid_paths.get("mouse_outputs", [])
+    if not MOUSE_HID_OUTPUTS:
+        logging.warning("設定ファイルにマウスのHIDパスが見つかりません。")
     SCAN_INTERVAL = 5  # デバイススキャン間隔（秒）
 
     # 管理対象デバイスと利用可能HID出力の初期化
