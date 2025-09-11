@@ -461,18 +461,29 @@ class KeyboardProxy:
 
     def process_event(self, event):
         """キーボードイベントの処理"""
-        data = categorize(event)
-        keycode = data.keycode
-        if isinstance(keycode, list): 
-            keycode = keycode[0]
-        keystate = data.keystate
+        if event.type != ecodes.EV_KEY:
+            return
+
+        try:
+            # event.code (int) を ecodes.KEY を使ってキーコード名 (str) に変換
+            keycode = ecodes.KEY[event.code]
+        except (IndexError, KeyError):
+            self.log.debug(f"不明なキーコードを無視: {event.code}")
+            return
         
+        # ecodes.KEY はリストを返すことがある (例: KEY_KPENTER)
+        if isinstance(keycode, list):
+            keycode = keycode[0]
+
+        # event.value はキーの状態 (0: release, 1: press, 2: repeat)
+        keystate = event.value
+
         # イベント処理の振り分け
-        if keycode in self.modifiers_map: 
+        if keycode in self.modifiers_map:
             self.update_modifier(keycode, keystate)
-        elif keystate == 0: 
+        elif keystate == 0:  # release
             self.release(keycode)
-        elif keystate == 1: 
+        elif keystate == 1 or keystate == 2:  # press or repeat
             self.press(keycode)
 
     def update_modifier(self, keycode, keystate):
