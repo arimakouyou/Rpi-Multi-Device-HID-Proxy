@@ -9,7 +9,7 @@
     "level": "ERROR"
   },
   "hid_paths": {
-    "keyboard": "/dev/hidg0",
+    "keyboard_outputs": ["/dev/hidg0"],
     "mouse_outputs": ["/dev/hidg1", "/dev/hidg2"]
   }
 }
