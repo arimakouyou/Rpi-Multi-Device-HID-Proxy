@@ -280,27 +280,9 @@ class MouseProxy:
         self.log.debug(f"ボタンイベント: {event.code} = {is_press}, 統合状態: {self.btn}, ドラッグモード: {self.drag_mode}")
 
     def restore_button_state(self):
-        """デバイス再接続時にボタン状態を復旧"""
-        current_time = time.time()
-        
-        for button_code, is_pressed in self.button_state_buffer.items():
-            last_event_time = self.last_button_event_time.get(button_code, 0)
-            # 5秒以内の状態のみ復旧対象
-            if current_time - last_event_time < 5.0 and is_pressed:
-                if button_code == ecodes.BTN_LEFT:
-                    self.button_left = 1
-                elif button_code == ecodes.BTN_RIGHT:
-                    self.button_right = (1 << 1)
-                elif button_code == ecodes.BTN_MIDDLE:
-                    self.button_center = (1 << 2)
-                elif button_code == ecodes.BTN_SIDE:
-                    self.back = (1 << 3)
-                elif button_code == ecodes.BTN_EXTRA:
-                    self.forward = (1 << 4)
-        
-        self.btn = self.button_left | self.button_right | self.button_center | self.back | self.forward
-        if self.btn > 0:
-            self.log.info(f"ボタン状態を復旧しました: {self.btn}")
+        """デバイス再接続時にボタン状態を復旧（無効化）"""
+        # この機能は無効化されました
+        pass
 
     def handle_rel_event(self, event):
         """相対移動イベントの処理（ドラッグ検出機能付き）"""
