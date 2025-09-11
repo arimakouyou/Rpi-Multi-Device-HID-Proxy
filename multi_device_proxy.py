@@ -239,19 +239,8 @@ class MouseProxy:
                 if self.drag_mode:
                     # ドラッグ中の意図しないボタンリリースを検出
                     time_since_movement = current_time - self.last_movement_time
-                    if time_since_movement < 0.03:  # 30ms以内に移動があった場合
-                        self.log.debug(f"ドラッグ中の偶発的なボタンリリースを検出: 移動から{time_since_movement:.3f}秒")
-                        # 短時間の場合は、ボタンリリースを無視してドラッグを継続
-                        return
                 self.drag_mode = False
                 self.consecutive_movement_count = 0
-        
-        # ドラッグ中のボタンリリースイベントを安定化
-        if was_dragging and event.code == ecodes.BTN_LEFT and not is_press:
-            # ドラッグ中に偶発的なリリースイベントが発生した場合の処理
-            if current_time - self.last_movement_time < 0.05:
-                self.log.debug(f"ドラッグ中の偶発的なボタンリリースを無視: {current_time - self.last_movement_time:.3f}秒前に移動")
-                return
         
         # 各ボタンの状態更新
         if event.code == ecodes.BTN_LEFT:
