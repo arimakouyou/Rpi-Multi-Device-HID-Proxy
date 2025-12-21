@@ -37,6 +37,8 @@ def load_config(config_path=None):
         for path in search_paths:
             if os.path.exists(path):
                 config_path = path
+                # デバッグ用: 標準出力に書き出す (journaldで捕捉されるはず)
+                print(f"[Multi-HID-Proxy-DEBUG] 設定ファイルを読み込みます: {config_path}")
                 break
         
         if config_path is None:
@@ -66,7 +68,8 @@ def load_config(config_path=None):
         if os.path.exists(config_path):
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-                logging.info(f"設定ファイルを読み込みました: {config_path}")
+                # ログ設定前なので、print文で出力（後でログで再出力）
+                print(f"[Multi-HID-Proxy] 設定ファイルを読み込みました: {config_path}")
                 # デフォルト値と設定ファイルの値をマージ
                 for key in default_config:
                     if key not in config:
@@ -91,6 +94,21 @@ def load_config(config_path=None):
 
 # グローバル設定変数
 CONFIG = load_config()
+
+# ロギングの早期初期化
+# mainブロックではなく、他のモジュールがimportされる前に設定することで、
+# 意図しないデフォルト設定での初期化を防ぐ
+log_level_str = CONFIG.get("logging", {}).get("level", "ERROR")
+log_level = getattr(logging, log_level_str.upper(), logging.ERROR)
+# systemd環境ではjournaldが自動的にタイムスタンプを付与するため、シンプルなフォーマットを使用
+if os.getenv('INVOCATION_ID'):  # systemdサービスとして実行されている場合
+    logging.basicConfig(level=log_level, format='[%(name)s|%(levelname)s] %(message)s')
+else:
+    logging.basicConfig(level=log_level, format='[%(asctime)s|%(name)s|%(levelname)s] %(message)s')
+logging.info("--- Multi-HID-Proxy デバッグバージョン 20250912 ---")
+logging.info(f"ロガーを初期化しました。ログレベル: {log_level_str}")
+# 設定ファイル読み込み完了をログで再出力
+logging.info(f"設定ファイルを読み込み完了: /etc/multi-hid-proxy/config.json (ログレベル: {log_level_str})")
 
 # GPIOライブラリの読み込み（Raspberry Pi以外では無効化）
 try:
@@ -131,7 +149,6 @@ class MouseProxy:
         self.input_device_path = input_device_path
         self.hid_output_path = hid_output_path
         self.device = None
-        self.hid_fd = None  # HIDデバイスのファイルディスクリプタ
         self.button_state_buffer = {}  # ボタン状態の保持用
         self.last_button_event_time = {}  # 最終ボタンイベント時刻
         self.reset_state()
@@ -141,15 +158,11 @@ class MouseProxy:
         try:
             self.device = InputDevice(self.input_device_path)
             self.device.grab()
-            self.hid_fd = os.open(self.hid_output_path, os.O_RDWR | os.O_NONBLOCK)
             self.log.info(f"マウスを正常に捕捉: {self.device.path} ({self.device.name}) -> {self.hid_output_path}")
             self.restore_button_state()
             return True
         except Exception as e:
             self.log.error(f"{self.input_device_path}への接続失敗: {e}")
-            if self.hid_fd:
-                os.close(self.hid_fd)
-                self.hid_fd = None
             return False
 
     def reset_state(self):
@@ -200,15 +213,9 @@ class MouseProxy:
                 if self.device: 
                     self.device.close()
                 self.device = None
-                if self.hid_fd:
-                    os.close(self.hid_fd)
-                    self.hid_fd = None
                 break
             except Exception as e:
                 self.log.error(f"予期せぬエラー: {e}", exc_info=True)
-                if self.hid_fd:
-                    os.close(self.hid_fd)
-                    self.hid_fd = None
                 break
 
     def handle_key_event(self, event):
@@ -321,19 +328,13 @@ class MouseProxy:
 
     def write_report(self, buffer):
         """HIDレポートの書き込み（エラーハンドリング付き）"""
-        if not self.hid_fd:
-            raise OSError(f"HID device {self.hid_output_path} is not open.")
-
         try:
-            os.write(self.hid_fd, buffer)
+            with open(self.hid_output_path, 'rb+') as fd:
+                fd.write(buffer)
         except BlockingIOError:
             self.log.warning(f"HIDデバイス {self.hid_output_path} への書き込みがブロックされました。レポートを破棄します。")
-            return
         except OSError as e:
             self.log.error(f"{self.hid_output_path}への書き込みでOSError: {e}")
-            if self.hid_fd:
-                os.close(self.hid_fd)
-            self.hid_fd = None
             raise e
 
     def is_button_stable(self, button_code, current_state, current_time):
@@ -376,7 +377,6 @@ class KeyboardProxy:
         self.input_device_path = input_device_path
         self.hid_output_path = hid_output_path
         self.device = None
-        self.hid_fd = None  # HIDデバイスのファイルディスクリプタ
         # 修飾キーのビット位置マップ
         self.modifiers_map = {
             'KEY_LEFTCTRL': 0, 'KEY_LEFTSHIFT': 1, 'KEY_LEFTALT': 2, 'KEY_LEFTMETA': 3, 
@@ -389,14 +389,10 @@ class KeyboardProxy:
         try:
             self.device = InputDevice(self.input_device_path)
             self.device.grab()
-            self.hid_fd = os.open(self.hid_output_path, os.O_RDWR | os.O_NONBLOCK)
             self.log.info(f"キーボードを正常に捕捉: {self.device.path} ({self.device.name}) -> {self.hid_output_path}")
             return True
         except Exception as e:
             self.log.error(f"{self.input_device_path}への接続失敗: {e}")
-            if self.hid_fd:
-                os.close(self.hid_fd)
-                self.hid_fd = None
             return False
 
     def reset_state(self):
@@ -414,22 +410,22 @@ class KeyboardProxy:
                 await asyncio.sleep(5)
                 continue
             try:
-                async for event in self.device.async_read_loop():
-                    self.process_event(event)
+                while True:
+                    # read_one()はブロッキングI/Oのため、executorで実行してイベントループをブロックしないようにする
+                    event = await self.loop.run_in_executor(None, self.device.read_one)
+                    if event is None:
+                        # イベントがない場合は次の読み取りへ
+                        await asyncio.sleep(0.01)
+                        continue
+                    self.process_event(event) # 同期的にイベントを処理
             except (OSError, asyncio.CancelledError) as e:
                 self.log.error(f"キーボード {self.input_device_path} 通信切断: {type(e).__name__}")
                 if self.device:
                     self.device.close()
                 self.device = None
-                if self.hid_fd:
-                    os.close(self.hid_fd)
-                    self.hid_fd = None
-                break
+                break # 外側のループも抜けて再接続シーケンスへ
             except Exception as e:
                 self.log.error(f"予期せぬエラー: {e}", exc_info=True)
-                if self.hid_fd:
-                    os.close(self.hid_fd)
-                    self.hid_fd = None
                 break
 
     def process_event(self, event):
@@ -438,20 +434,16 @@ class KeyboardProxy:
             return
 
         try:
-            # event.code (int) を ecodes.KEY を使ってキーコード名 (str) に変換
             keycode = ecodes.KEY[event.code]
         except (IndexError, KeyError):
             self.log.debug(f"不明なキーコードを無視: {event.code}")
             return
         
-        # ecodes.KEY はリストを返すことがある (例: KEY_KPENTER)
         if isinstance(keycode, list):
             keycode = keycode[0]
 
-        # event.value はキーの状態 (0: release, 1: press, 2: repeat)
         keystate = event.value
 
-        # イベント処理の振り分け
         if keycode in self.modifiers_map:
             self.update_modifier(keycode, keystate)
         elif keystate == 0:  # release
@@ -527,7 +519,6 @@ class KeyboardProxy:
             modifier |= 0x02
             report[0] = 0x02
             self.write_report(bytes(report))
-            time.sleep(0.01)
         elif self.is_shift_down: 
             modifier &= ~self.shift_bit
             
@@ -539,19 +530,13 @@ class KeyboardProxy:
 
     def write_report(self, buffer):
         """HIDレポートの書き込み（エラーハンドリング付き）"""
-        if not self.hid_fd:
-            raise OSError(f"HID device {self.hid_output_path} is not open.")
-
         try:
-            os.write(self.hid_fd, buffer)
+            with open(self.hid_output_path, 'rb+') as fd:
+                fd.write(buffer)
         except BlockingIOError:
             self.log.warning(f"HIDデバイス {self.hid_output_path} への書き込みがブロックされました。レポートを破棄します。")
-            return
         except OSError as e:
             self.log.error(f"{self.hid_output_path}への書き込みでOSError: {e}")
-            if self.hid_fd:
-                os.close(self.hid_fd)
-            self.hid_fd = None
             raise e
 
 class KeyBowManager:
@@ -569,7 +554,12 @@ class KeyBowManager:
             loop: asyncioイベントループ
         """
         self.loop = loop
-        self.keyboard_hid_path = CONFIG["hid_paths"]["keyboard"]
+        # 設定ファイルの形式に対応（keyboard_outputs配列 or keyboard文字列）
+        hid_paths = CONFIG["hid_paths"]
+        if "keyboard_outputs" in hid_paths:
+            self.keyboard_hid_path = hid_paths["keyboard_outputs"][0]
+        else:
+            self.keyboard_hid_path = hid_paths.get("keyboard", "/dev/hidg0")
         self.email_address = CONFIG["email_address"]
         Button.was_held = False
         
@@ -603,32 +593,27 @@ class KeyBowManager:
         
         logging.info(f"KeyBow (GPIOボタン) マネージャーを初期化しました。（長押し時間: {hold_time}秒、メールアドレス: {self.email_address}）")
 
-    def send_key_combination(self, modifier_bits, key_code):
+    async def send_key_combination(self, modifier_bits, key_code):
         """
-        キーボードコンビネーションの送信
-        指定されたキーを押下→離す→Altキーを押下→離すの順序で実行
+        キーボードコンビネーションの送信（非同期版）
         """
         try:
-            # メインキーの送信
             press_report = bytearray(8)
             press_report[0] = modifier_bits
             press_report[2] = key_code
-            
             release_report = bytearray(8)
             
-            # Altキーのみの送信（ミーティングコントロール復活用）
             alt_only_press = bytearray(8)
             alt_only_press[0] = 0x04
-            
             alt_only_release = bytearray(8)
             
             with open(self.keyboard_hid_path, 'rb+') as fd:
                 fd.write(bytes(press_report))
-                time.sleep(0.01)
+                await asyncio.sleep(0.01)
                 fd.write(bytes(release_report))
-                time.sleep(0.01)
+                await asyncio.sleep(0.01)
                 fd.write(bytes(alt_only_press))
-                time.sleep(0.01)
+                await asyncio.sleep(0.01)
                 fd.write(bytes(alt_only_release))
                 
         except OSError as e:
@@ -636,70 +621,58 @@ class KeyBowManager:
         except Exception as e:
             logging.error(f"予期せぬエラー: {e}")
 
-    def send_email_address(self):
-        """設定ファイルから読み込んだメールアドレスを入力"""
+    async def send_email_address(self):
+        """設定ファイルから読み込んだメールアドレスを非同期で入力"""
         email = self.email_address
-        logging.info(f"メールアドレスを入力します: {email}")
+        logging.info(f"メールアドレスを非同期で入力します: {email}")
         
         try:
             with open(self.keyboard_hid_path, 'rb+') as fd:
+                logging.info("HIDデバイスを開きました。文字入力を開始します")
                 for char in email:
-                    if char == '@':
-                        press_report = bytearray(8)
-                        press_report[0] = 0x02
-                        press_report[2] = 0x1f
-                        fd.write(bytes(press_report))
-                        time.sleep(0.1)
-                        
-                        release_report = bytearray(8)
-                        fd.write(bytes(release_report))
-                        time.sleep(0.1)
-                    elif char == '-':
-                        press_report = bytearray(8)
-                        press_report[2] = 0x2d
-                        fd.write(bytes(press_report))
-                        time.sleep(0.1)
-                        
-                        release_report = bytearray(8)
-                        fd.write(bytes(release_report))
-                        time.sleep(0.1)
-                    elif char == '.':
-                        press_report = bytearray(8)
-                        press_report[2] = 0x37
-                        fd.write(bytes(press_report))
-                        time.sleep(0.1)
-                        
-                        release_report = bytearray(8)
-                        fd.write(bytes(release_report))
-                        time.sleep(0.1)
-                    elif char.isalpha():
+                    press_report = bytearray(8)
+                    release_report = bytearray(8)
+                    shift = False
+
+                    if 'a' <= char <= 'z':
                         key_name = f'KEY_{char.upper()}'
-                        if key_name in hid_keys:
-                            press_report = bytearray(8)
-                            press_report[2] = hid_keys[key_name]
-                            fd.write(bytes(press_report))
-                            time.sleep(0.1)
-                            
-                            release_report = bytearray(8)
-                            fd.write(bytes(release_report))
-                            time.sleep(0.1)
-                    elif char.isdigit():
-                        # 数字の処理を追加
+                        press_report[2] = hid_keys.get(key_name, 0)
+                    elif 'A' <= char <= 'Z':
+                        shift = True
                         key_name = f'KEY_{char}'
-                        if key_name in hid_keys:
-                            press_report = bytearray(8)
-                            press_report[2] = hid_keys[key_name]
-                            fd.write(bytes(press_report))
-                            time.sleep(0.1)
-                            
-                            release_report = bytearray(8)
-                            fd.write(bytes(release_report))
-                            time.sleep(0.1)
+                        press_report[2] = hid_keys.get(key_name, 0)
+                    elif '0' <= char <= '9':
+                        key_name = f'KEY_{char}'
+                        press_report[2] = hid_keys.get(key_name, 0)
+                    else:
+                        # 記号のマッピング
+                        symbol_map = {
+                            '@': (True, 'KEY_2'), '-': (False, 'KEY_MINUS'), '.': (False, 'KEY_DOT'),
+                            '_': (True, 'KEY_MINUS'), '+': (True, 'KEY_EQUAL')
+                        }
+                        if char in symbol_map:
+                            shift, key_name = symbol_map[char]
+                            press_report[2] = hid_keys.get(key_name, 0)
+                        else:
+                            continue # 不明な文字はスキップ
+
+                    if shift:
+                        press_report[0] = 0x02 # 左シフト
+
+                    # キーを押す
+                    fd.write(bytes(press_report))
+                    await asyncio.sleep(0.02)
+                    # キーを離す
+                    fd.write(bytes(release_report))
+                    await asyncio.sleep(0.02)
+
+                logging.info(f"メールアドレス入力完了: {email}")
                         
         except OSError as e:
             logging.error(f"メールアドレス入力中にHIDレポート送信エラー: {e}")
         except Exception as e:
             logging.error(f"メールアドレス入力中に予期せぬエラー: {e}")
+
 
     def held1(self, btn):
         global REMAP_ENABLED
@@ -713,7 +686,8 @@ class KeyBowManager:
             logging.info("ボタン1と2が長押しされました。メールアドレスを入力します。")
             self.button_states[1]["combination_detected"] = True
             self.button_states[2]["combination_detected"] = True
-            self.send_email_address()
+            # asyncio タスクとして実行（非同期関数の正しい呼び出し）
+            asyncio.run_coroutine_threadsafe(self.send_email_address(), self.loop)
         else:
             REMAP_ENABLED = not REMAP_ENABLED
             state_text = "有効" if REMAP_ENABLED else "無効"
@@ -729,7 +703,7 @@ class KeyBowManager:
 
     def pressed1(self, btn): 
         logging.info("ボタン1が押されました。Alt+Aを送信後、Altキーでミーティングコントロールを復活させます。")
-        self.send_key_combination(0x04, 0x04)
+        asyncio.run_coroutine_threadsafe(self.send_key_combination(0x04, 0x04), self.loop)
 
     def held2(self, btn):
         self.button_states[2]["was_held"] = True
@@ -737,7 +711,8 @@ class KeyBowManager:
             logging.info("ボタン1と2が長押しされました。メールアドレスを入力します。")
             self.button_states[1]["combination_detected"] = True
             self.button_states[2]["combination_detected"] = True
-            self.send_email_address()
+            # asyncio タスクとして実行（非同期関数の正しい呼び出し）
+            asyncio.run_coroutine_threadsafe(self.send_email_address(), self.loop)
 
     def released2(self, btn):
         # 同時押しが検出されていた場合は通常のキーイベントをスキップ
@@ -749,7 +724,7 @@ class KeyBowManager:
 
     def pressed2(self, btn): 
         logging.info("ボタン2が押されました。Alt+Yを送信後、Altキーでミーティングコントロールを復活させます。")
-        self.send_key_combination(0x04, 0x1c)
+        asyncio.run_coroutine_threadsafe(self.send_key_combination(0x04, 0x1c), self.loop)
 
     def held3(self, btn):
         self.button_states[3]["was_held"] = True
@@ -769,7 +744,7 @@ class KeyBowManager:
 
     def pressed3(self, btn): 
         logging.info("ボタン3が押されました。スペースキーを送信します。")
-        self.send_key_combination(0x00, 0x2c)
+        asyncio.run_coroutine_threadsafe(self.send_key_combination(0x00, 0x2c), self.loop)
 
 async def shutdown(loop, signal=None):
     """プログラムの正常終了処理"""
@@ -889,10 +864,7 @@ def manage_device_connections(current_devices, managed_devices, available_hids, 
         logging.info(f"タスクをキャンセルし、HID出力 {info['hid_output']} を解放しました。")
 
 if __name__ == "__main__":
-    # 設定ファイルからログレベルを読み込み
-    log_level = getattr(logging, CONFIG["logging"]["level"].upper(), logging.ERROR)
-    logging.basicConfig(level=log_level, format='[%(asctime)s|%(name)s|%(levelname)s] %(message)s', stream=sys.stdout)
-    logging.info(f"設定ファイルから読み込んだログレベル: {CONFIG['logging']['level']}")
+    # ロギングはスクリプト上部で初期化済み
     
     # asyncioイベントループの設定
     loop = asyncio.get_event_loop()
