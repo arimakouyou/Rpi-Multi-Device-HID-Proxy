@@ -1,6 +1,7 @@
 [Unit]
 Description=Multi-Device Keyboard Proxy Service
-After=network.target
+After=network.target multi-hid-gadget.service
+Requires=multi-hid-gadget.service
 
 [Service]
 ExecStart=/usr/bin/python3 /usr/local/bin/keyboard_proxy.py

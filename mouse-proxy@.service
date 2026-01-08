@@ -1,7 +1,8 @@
 [Unit]
 Description=Multi-Device Mouse Proxy Service for %I
 BindsTo=dev-input-%i.device
-After=dev-input-%i.device
+After=dev-input-%i.device multi-hid-gadget.service
+Requires=multi-hid-gadget.service
 
 [Service]
 ExecStart=/usr/local/bin/mouse_proxy_rs /dev/input/%I /dev/hidg1
