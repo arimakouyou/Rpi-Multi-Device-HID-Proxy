@@ -1,0 +1,23 @@
+# Build artifacts
+dist/
+*.tar.gz
+
+# Rust build artifacts
+target/
+**/*.rs.bk
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# IDE settings
+.vscode/
+.idea/
+
+# Binaries
+mouse_proxy_rs
+
+# Agent/Tool directories
+.serena/
+.spec-workflow/
+.claude/

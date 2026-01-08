@@ -1,0 +1,12 @@
+[Unit]
+Description=Multi-Device Mouse Proxy Service for %I
+BindsTo=dev-input-%i.device
+After=dev-input-%i.device
+
+[Service]
+ExecStart=/usr/local/bin/mouse_proxy_rs /dev/input/%I /dev/hidg1
+WorkingDirectory=/usr/local/bin
+Restart=always
+User=root
+Group=root
+Environment=RUST_LOG=error

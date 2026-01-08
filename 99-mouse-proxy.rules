@@ -1,0 +1,5 @@
+# HHKB Studio Mouse
+ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="HHKB-Studio[1-4] Mouse", TAG+="systemd", ENV{SYSTEMD_WANTS}+="mouse-proxy@%k.service"
+
+# Logitech Mouse
+ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Logitech*", TAG+="systemd", ENV{SYSTEMD_WANTS}+="mouse-proxy@%k.service"

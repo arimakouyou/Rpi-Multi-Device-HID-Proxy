@@ -132,7 +132,6 @@ class MouseProxy:
     """
     マウスデバイスのプロキシクラス
     入力デバイスからイベントを受信し、HIDガジェットとして出力
-    ドラッグ操作の安定化機能を含む
     """
     
     def __init__(self, input_device_path, hid_output_path, loop):
@@ -176,22 +175,6 @@ class MouseProxy:
             self.button_state_buffer = {}
         if not hasattr(self, 'last_button_event_time'):
             self.last_button_event_time = {}
-            
-        # ドラッグ安定化のための追加状態
-        if not hasattr(self, 'button_debounce_buffer'):
-            self.button_debounce_buffer = {}
-        if not hasattr(self, 'drag_mode'):
-            self.drag_mode = False
-        if not hasattr(self, 'last_movement_time'):
-            self.last_movement_time = 0
-            
-        # ドラッグ状態の履歴管理
-        if not hasattr(self, 'movement_history'):
-            self.movement_history = []
-        if not hasattr(self, 'button_press_start_time'):
-            self.button_press_start_time = {}
-        if not hasattr(self, 'consecutive_movement_count'):
-            self.consecutive_movement_count = 0
 
     async def run(self):
         """メインループ: デバイスイベントを継続的に処理"""
@@ -219,34 +202,9 @@ class MouseProxy:
                 break
 
     def handle_key_event(self, event):
-        """ボタンイベントの処理（ドラッグ安定化機能付き）"""
+        """ボタンイベントの処理"""
         current_time = time.time()
         is_press = event.value == 1
-        
-        # デバウンス処理: 同じボタンの連続したイベントを無視
-        if event.code in self.button_debounce_buffer:
-            last_event_time, last_state = self.button_debounce_buffer[event.code]
-            if current_time - last_event_time < 0.01 and last_state == is_press:
-                return  # デバウンス期間内の同じ状態イベントは無視
-        
-        self.button_debounce_buffer[event.code] = (current_time, is_press)
-        
-        # ドラッグモードの検出と改善
-        was_dragging = self.drag_mode
-        if event.code == ecodes.BTN_LEFT:
-            if is_press:
-                self.button_press_start_time[ecodes.BTN_LEFT] = current_time
-                # ボタンが押された直前に移動があった場合、ドラッグの可能性が高い
-                if current_time - self.last_movement_time < 0.1:
-                    self.drag_mode = True
-                    self.log.debug(f"ドラッグモード開始: 移動から{current_time - self.last_movement_time:.3f}秒でボタン押下")
-            elif not is_press:
-                # ボタンが離された時のドラッグモード終了処理
-                if self.drag_mode:
-                    # ドラッグ中の意図しないボタンリリースを検出
-                    time_since_movement = current_time - self.last_movement_time
-                self.drag_mode = False
-                self.consecutive_movement_count = 0
         
         # 各ボタンの状態更新
         if event.code == ecodes.BTN_LEFT:
@@ -272,7 +230,7 @@ class MouseProxy:
         
         # 総合ボタン状態の更新
         self.btn = self.button_left | self.button_right | self.button_center | self.back | self.forward
-        self.log.debug(f"ボタンイベント: {event.code} = {is_press}, 統合状態: {self.btn}, ドラッグモード: {self.drag_mode}")
+        self.log.debug(f"ボタンイベント: {event.code} = {is_press}, 統合状態: {self.btn}")
 
     def restore_button_state(self):
         """デバイス再接続時にボタン状態を復旧（無効化）"""
@@ -280,35 +238,11 @@ class MouseProxy:
         pass
 
     def handle_rel_event(self, event):
-        """相対移動イベントの処理（ドラッグ検出機能付き）"""
-        current_time = time.time()
-        
+        """相対移動イベントの処理"""
         if event.code == ecodes.REL_X: 
             self.move_x = event.value
-            self.last_movement_time = current_time
-            # 移動履歴を記録してドラッグ検出精度を向上
-            self.movement_history.append((current_time, 'X', event.value))
-            if len(self.movement_history) > 10:  # 履歴は最新10件に制限
-                self.movement_history.pop(0)
-            # 連続的な移動をカウント
-            if self.button_state_buffer.get(ecodes.BTN_LEFT, False):
-                self.consecutive_movement_count += 1
-                if self.consecutive_movement_count > 3:  # 3回以上の連続移動でドラッグ確定
-                    self.drag_mode = True
-                    
         elif event.code == ecodes.REL_Y: 
             self.move_y = event.value
-            self.last_movement_time = current_time
-            # 移動履歴を記録してドラッグ検出精度を向上
-            self.movement_history.append((current_time, 'Y', event.value))
-            if len(self.movement_history) > 10:  # 履歴は最新10件に制限
-                self.movement_history.pop(0)
-            # 連続的な移動をカウント
-            if self.button_state_buffer.get(ecodes.BTN_LEFT, False):
-                self.consecutive_movement_count += 1
-                if self.consecutive_movement_count > 3:  # 3回以上の連続移動でドラッグ確定
-                    self.drag_mode = True
-                    
         elif event.code == ecodes.REL_WHEEL: 
             self.scroll_y = event.value
 
@@ -336,25 +270,6 @@ class MouseProxy:
         except OSError as e:
             self.log.error(f"{self.hid_output_path}への書き込みでOSError: {e}")
             raise e
-
-    def is_button_stable(self, button_code, current_state, current_time):
-        """ボタン状態が安定しているかチェック（ドラッグ安定化用）"""
-        if button_code not in self.button_state_buffer:
-            return True
-        
-        last_event_time = self.last_button_event_time.get(button_code, 0)
-        time_since_last_event = current_time - last_event_time
-        
-        # ドラッグ中の左ボタンの場合、特別な安定化処理
-        if button_code == ecodes.BTN_LEFT and self.drag_mode:
-            # ドラッグ中に突然リリースされた場合、移動が続いているかチェック
-            if not current_state and time_since_last_event < 0.1:
-                time_since_movement = current_time - self.last_movement_time
-                if time_since_movement < 0.02:  # 20ms以内に移動があった場合
-                    self.log.debug(f"ドラッグ中のボタンリリースを安定化処理で保持: 移動から{time_since_movement:.3f}秒")
-                    return False
-        
-        return True
 
 class KeyboardProxy:
     """
