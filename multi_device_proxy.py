@@ -593,29 +593,38 @@ class KeyBowManager:
         
         logging.info(f"KeyBow (GPIOボタン) マネージャーを初期化しました。（長押し時間: {hold_time}秒、メールアドレス: {self.email_address}）")
 
-    async def send_key_combination(self, modifier_bits, key_code):
+    async def send_key_combination(self, modifier_bits, key_code, send_alt_after=False):
         """
         キーボードコンビネーションの送信（非同期版）
+
+        Args:
+            modifier_bits: モディファイアキーのビット（Alt=0x04, Shift=0x02等）
+            key_code: HIDキーコード
+            send_alt_after: キー送信後にALTキーを送信するか（ミーティングコントロール復活用）
         """
         try:
             press_report = bytearray(8)
             press_report[0] = modifier_bits
             press_report[2] = key_code
             release_report = bytearray(8)
-            
-            alt_only_press = bytearray(8)
-            alt_only_press[0] = 0x04
-            alt_only_release = bytearray(8)
-            
+
             with open(self.keyboard_hid_path, 'rb+') as fd:
+                # 指定されたキーを送信
                 fd.write(bytes(press_report))
                 await asyncio.sleep(0.01)
                 fd.write(bytes(release_report))
                 await asyncio.sleep(0.01)
-                fd.write(bytes(alt_only_press))
-                await asyncio.sleep(0.01)
-                fd.write(bytes(alt_only_release))
-                
+
+                # ミーティングコントロール復活用のALTキー送信（オプション）
+                if send_alt_after:
+                    alt_only_press = bytearray(8)
+                    alt_only_press[0] = 0x04
+                    alt_only_release = bytearray(8)
+
+                    fd.write(bytes(alt_only_press))
+                    await asyncio.sleep(0.01)
+                    fd.write(bytes(alt_only_release))
+
         except OSError as e:
             logging.error(f"HIDレポート送信エラー {self.keyboard_hid_path}: {e}")
         except Exception as e:
@@ -742,9 +751,9 @@ class KeyBowManager:
         self.button_states[3]["was_held"] = False
         self.button_states[3]["combination_detected"] = False
 
-    def pressed3(self, btn): 
+    def pressed3(self, btn):
         logging.info("ボタン3が押されました。スペースキーを送信します。")
-        asyncio.run_coroutine_threadsafe(self.send_key_combination(0x00, 0x2c), self.loop)
+        asyncio.run_coroutine_threadsafe(self.send_key_combination(0x00, 0x2c, send_alt_after=False), self.loop)
 
 async def shutdown(loop, signal=None):
     """プログラムの正常終了処理"""
