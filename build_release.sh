@@ -6,14 +6,26 @@ PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 DIST_DIR="${PROJECT_ROOT}/dist"
 ARCHIVE_NAME="multi-hid-proxy-release.tar.gz"
 
+# 引数の解析
+TARGET_ARCH="aarch64" # デフォルトでRaspberry Pi Zero 2W用 (aarch64) に設定
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --target)
+            TARGET_ARCH="$2"
+            shift 2
+            ;;
+        *)
+            echo "不明なオプション: $1"
+            exit 1
+            ;;
+    esac
+done
+
 echo "=== Multi HID Proxy ビルドスクリプト開始 ==="
 
 # 1. Rustプロジェクトのビルド
 echo "[1/4] Rustバイナリ (mouse_proxy_rs) をビルドしています..."
 cd "${PROJECT_ROOT}/rust/mouse_proxy_rs"
-# クロスコンパイルが必要な場合はここで指定しますが、
-# ここではネイティブビルド (または環境変数での指定) を想定しています。
-# RPi上でビルドする場合は単に cargo build --release
 
 # cargoコマンドがない場合、パスを通してみる
 if ! command -v cargo &> /dev/null; then
@@ -22,15 +34,52 @@ if ! command -v cargo &> /dev/null; then
     fi
 fi
 
-if command -v cargo &> /dev/null; then
-    cargo build --release
-else
+if ! command -v cargo &> /dev/null; then
     echo "エラー: cargo コマンドが見つかりません。Rust環境をインストールしてください。"
     exit 1
 fi
 
-# ビルド成果物の確認
-BINARY_PATH="${PROJECT_ROOT}/rust/mouse_proxy_rs/target/release/mouse_proxy_rs"
+BUILD_CMD="cargo build --release"
+
+if [ -n "$TARGET_ARCH" ] && [ "$TARGET_ARCH" != "native" ]; then
+    echo "ターゲットアーキテクチャ: $TARGET_ARCH"
+    if [[ "$TARGET_ARCH" == "aarch64" || "$TARGET_ARCH" == "aarch64-unknown-linux-gnu" ]]; then
+        TARGET_TRIPLE="aarch64-unknown-linux-gnu"
+        LINKER="aarch64-linux-gnu-gcc"
+
+        # リンカーのチェック
+        if ! command -v "$LINKER" &> /dev/null; then
+            echo "エラー: リンカー '$LINKER' が見つかりません。"
+            echo "インストールしてください: sudo apt install gcc-aarch64-linux-gnu"
+            exit 1
+        fi
+
+        # ターゲットの追加チェック (簡易)
+        if ! rustup target list --installed | grep -q "$TARGET_TRIPLE"; then
+             echo "警告: Rustターゲット '$TARGET_TRIPLE' がインストールされていない可能性があります。"
+             echo "実行してみてください: rustup target add $TARGET_TRIPLE"
+             # 続行する (すでにあるかもしれないし、rustupがない環境かもしれないので)
+        fi
+
+        # 環境変数でリンカーを指定してビルド
+        export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER="$LINKER"
+        BUILD_CMD="cargo build --release --target $TARGET_TRIPLE"
+        
+        # バイナリパスの更新 (ターゲットディレクトリが変わるため)
+        BINARY_PATH="${PROJECT_ROOT}/rust/mouse_proxy_rs/target/$TARGET_TRIPLE/release/mouse_proxy_rs"
+    else
+        echo "エラー: サポートされていないアーキテクチャです: $TARGET_ARCH"
+        exit 1
+    fi
+else
+    # ネイティブビルド
+    echo "ターゲットアーキテクチャ: native (host)"
+    BINARY_PATH="${PROJECT_ROOT}/rust/mouse_proxy_rs/target/release/mouse_proxy_rs"
+fi
+
+echo "実行コマンド: $BUILD_CMD"
+eval "$BUILD_CMD"
+
 if [ ! -f "$BINARY_PATH" ]; then
     echo "エラー: バイナリのビルドに失敗しました ($BINARY_PATH が見つかりません)"
     exit 1
