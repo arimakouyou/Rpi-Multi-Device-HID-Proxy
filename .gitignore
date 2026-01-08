@@ -15,7 +15,7 @@ __pycache__/
 .idea/
 
 # Binaries
-mouse_proxy_rs
+/mouse_proxy_rs
 
 # Agent/Tool directories
 .serena/

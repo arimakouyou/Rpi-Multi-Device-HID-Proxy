@@ -105,9 +105,15 @@ for i in $(seq 0 $(($NUM_MICE - 1))); do
     mkdir -p "$FUNC_DIR"
     echo 2 > "$FUNC_DIR/protocol"    # Mouse
     echo 0 > "$FUNC_DIR/subclass"
-    echo 8 > "$FUNC_DIR/report_length"
+    echo 7 > "$FUNC_DIR/report_length"
     # マウスのレポートディスクリプタ
-    echo -ne \\x05\\x01\\x09\\x02\\xa1\\x01\\x09\\x01\\xa1\\x00\\x05\\x09\\x19\\x01\\x29\\x05\\x15\\x00\\x25\\x01\\x95\\x05\\x75\\x01\\x81\\x02\\x05\\x01\\x09\\x30\\x09\\x31\\x09\\x38\\x15\\x81\\x25\\x7f\\x75\\x10\\x95\\x03\\x81\\x06\\xc0\\xc0 > "$FUNC_DIR/report_desc"
+    # Usage Page (Generic Desktop), Usage (Mouse), Collection (Application), Usage (Pointer), Collection (Physical)
+    # Usage Page (Buttons), Usage Min (1), Usage Max (5), Logical Min (0), Logical Max (1), Report Count (5), Report Size (1), Input (Data,Var,Abs)
+    # Report Count (1), Report Size (3), Input (Const,Var,Abs) [Padding for byte alignment]
+    # Usage Page (Generic Desktop), Usage (X), Usage (Y), Usage (Wheel)
+    # Logical Min (-32767), Logical Max (32767), Report Count (3), Report Size (16), Input (Data,Var,Rel)
+    # End Collection, End Collection
+    echo -ne \\x05\\x01\\x09\\x02\\xa1\\x01\\x09\\x01\\xa1\\x00\\x05\\x09\\x19\\x01\\x29\\x05\\x15\\x00\\x25\\x01\\x95\\x05\\x75\\x01\\x81\\x02\\x95\\x01\\x75\\x03\\x81\\x03\\x05\\x01\\x09\\x30\\x09\\x31\\x09\\x38\\x16\\x01\\x80\\x26\\xff\\x7f\\x95\\x03\\x75\\x10\\x81\\x06\\xc0\\xc0 > "$FUNC_DIR/report_desc"
 done
 
 # 4. 設定の作成と関数のリンク
