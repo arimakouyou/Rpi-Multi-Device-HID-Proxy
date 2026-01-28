@@ -15,15 +15,11 @@ command_exists() {
 # --- 依存関係のチェック ---
 echo "必須パッケージの依存関係をチェックしています..."
 
-# 1. python3-evdev (evdev)
 # 1. python3-evdev (evdev) - keyboard_proxy.py 等で使用
 if ! python3 -c "import evdev" &> /dev/null; then
     echo "警告: Pythonライブラリ 'evdev' が見つかりません。"
     echo "キーボード機能を使用する場合はインストールが必要です:"
     echo "  sudo apt-get update && sudo apt-get install python3-evdev"
-    # 必須ではなく警告にするか、キーボードを使うなら必須のままにするか。
-    # ここでは既存のロジックに従いエラー終了としますが、メッセージを少し修正。
-    # Mouse Proxy (Rust) はこれに依存しませんが、Keyboard Proxy は依存します。
     exit 1
 fi
 
@@ -33,6 +29,60 @@ if ! command_exists jq; then
     echo "解決策: 以下のコマンドを実行してください:"
     echo "  sudo apt-get update && sudo apt-get install jq"
     exit 1
+fi
+
+# 3. gpiozero - GPIOボタン制御用
+if ! python3 -c "import gpiozero" &> /dev/null; then
+    echo "警告: Pythonライブラリ 'gpiozero' が見つかりません。"
+    echo "GPIOボタン機能を使用する場合はインストールが必要です。"
+    echo "自動インストールを試みます..."
+    if apt-get install -y python3-gpiozero; then
+        echo "gpiozero のインストールが完了しました。"
+    else
+        echo "エラー: gpiozero のインストールに失敗しました。"
+        echo "手動でインストールしてください: sudo apt-get install python3-gpiozero"
+        exit 1
+    fi
+fi
+
+# 4. rpi_ws281x - NeoPixel LED制御用
+if ! python3 -c "import rpi_ws281x" &> /dev/null; then
+    echo "警告: Pythonライブラリ 'rpi_ws281x' が見つかりません。"
+    echo "LED制御機能を使用する場合はインストールが必要です。"
+    echo "自動インストールを試みます..."
+    
+    # pip3のインストール確認
+    if ! command_exists pip3 && ! python3 -m pip --version &> /dev/null; then
+        echo "pip3 が見つかりません。python3-pip をインストールしています..."
+        if apt-get install -y python3-pip; then
+            echo "python3-pip のインストールが完了しました。"
+        else
+            echo "警告: python3-pip のインストールに失敗しました。"
+            echo "手動でインストールしてください: sudo apt-get install python3-pip"
+            echo "LED機能は無効化されますが、他の機能は動作します。"
+        fi
+    fi
+    
+    # 必要なビルドツールの確認
+    if ! command_exists scons; then
+        echo "ビルドツール 'scons' をインストールしています..."
+        apt-get install -y scons
+    fi
+    
+    # rpi_ws281xのインストール (--break-system-packagesオプション付き)
+    # systemdサービスで使用するため、システムワイドインストールが必要
+    if python3 -m pip install --break-system-packages rpi_ws281x 2>/dev/null; then
+        echo "rpi_ws281x のインストールが完了しました。"
+    elif pip3 install --break-system-packages rpi_ws281x 2>/dev/null; then
+        echo "rpi_ws281x のインストールが完了しました。"
+    else
+        echo "警告: rpi_ws281x のインストールに失敗しました。"
+        echo "LED機能は無効化されますが、他の機能は動作します。"
+        echo "手動でインストールする場合:"
+        echo "  sudo apt-get install python3-pip"
+        echo "  sudo python3 -m pip install --break-system-packages rpi_ws281x"
+        # LED機能はオプショナルなので、失敗してもexitしない
+    fi
 fi
 
 echo "依存関係は満たされています。"

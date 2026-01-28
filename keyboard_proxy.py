@@ -28,6 +28,21 @@ except ImportError:
         def __init__(self, *args, **kwargs): pass
         def __getattr__(self, name): return lambda *args, **kwargs: None
 
+# NeoPixel Library Import
+try:
+    from rpi_ws281x import PixelStrip, Color
+    NEOPIXEL_AVAILABLE = True
+except ImportError:
+    logging.warning("rpi_ws281x library not found. LED functions disabled.")
+    NEOPIXEL_AVAILABLE = False
+    class PixelStrip:
+        def __init__(self, *args, **kwargs): pass
+        def begin(self): pass
+        def setPixelColor(self, *args, **kwargs): pass
+        def show(self): pass
+        def setBrightness(self, *args, **kwargs): pass
+    Color = lambda r, g, b: 0
+
 class KeyboardProxy:
     """
     Keyboard proxy class
@@ -220,6 +235,37 @@ class KeyBowManager:
         self.btn3.when_held = self.held3
         self.btn3.when_released = self.released3
         
+        # LED initialization
+        self.led_strip = None
+        self.led_enabled = False
+        led_settings = CONFIG.get("led_settings", {})
+        if led_settings.get("enabled", False) and NEOPIXEL_AVAILABLE:
+            try:
+                led_pin = led_settings.get("gpio_pin", 18)
+                led_count = led_settings.get("led_count", 3)
+                brightness = led_settings.get("brightness", 50)
+                self.led_colors = led_settings.get("colors", {
+                    "remap_enabled": [0, 255, 0],
+                    "remap_disabled": [255, 0, 0]
+                })
+                
+                # Create NeoPixel object
+                self.led_strip = PixelStrip(
+                    led_count,
+                    led_pin,
+                    800000,    # LED signal frequency (800kHz)
+                    10,        # DMA channel
+                    False,     # Invert signal
+                    brightness # Brightness (0-255)
+                )
+                self.led_strip.begin()
+                self.led_enabled = True
+                self.update_led_status()
+                logging.info(f"LED initialized: {led_count} LEDs on GPIO {led_pin}")
+            except Exception as e:
+                logging.error(f"Failed to initialize LED: {e}")
+                self.led_enabled = False
+        
         logging.info(f"KeyBow initialized. Hold time: {hold_time}s")
 
     async def send_key_combination(self, modifier_bits, key_code, send_alt_after=False):
@@ -307,6 +353,7 @@ class KeyBowManager:
             REMAP_ENABLED = not REMAP_ENABLED
             state = "Enabled" if REMAP_ENABLED else "Disabled"
             logging.info(f"Btn 1 Held: Remap {state}")
+            self.update_led_status()
 
     def released1(self, btn):
         if not self.button_states[1]["was_held"] and not self.button_states[1]["combination_detected"]: 
@@ -353,6 +400,26 @@ class KeyBowManager:
     def pressed3(self, btn):
         logging.info("Btn 3 Pressed: Space")
         asyncio.run_coroutine_threadsafe(self.send_key_combination(0x00, 0x2c), self.loop)
+
+    def update_led_status(self):
+        """Update LED colors based on REMAP_ENABLED status"""
+        if not self.led_enabled or self.led_strip is None:
+            return
+        
+        try:
+            global REMAP_ENABLED
+            color_key = "remap_enabled" if REMAP_ENABLED else "remap_disabled"
+            rgb = self.led_colors.get(color_key, [0, 255, 0])
+            color = Color(rgb[0], rgb[1], rgb[2])
+            
+            # Set all LEDs to the same color
+            for i in range(self.led_strip.numPixels()):
+                self.led_strip.setPixelColor(i, color)
+            self.led_strip.show()
+            
+            logging.info(f"LED updated: {color_key} -> RGB{tuple(rgb)}")
+        except Exception as e:
+            logging.error(f"Failed to update LED: {e}")
 
 async def device_monitor(loop):
     KEYBOARD_DEVICE_NAME_PATTERN = re.compile(r'HHKB-Studio[1-4] Keyboard|HHKB-Hybrid.*|PFU.*')

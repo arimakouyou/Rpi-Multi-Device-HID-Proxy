@@ -5,11 +5,21 @@
     "bounce_time": 0.05,
     "combination_check_delay": 0.2
   },
+  "led_settings": {
+    "enabled": true,
+    "gpio_pin": 18,
+    "led_count": 3,
+    "brightness": 50,
+    "colors": {
+      "remap_enabled": [0, 255, 0],
+      "remap_disabled": [255, 0, 0]
+    }
+  },
   "logging": {
     "level": "INFO"
   },
   "hid_paths": {
-    "keyboard": "/dev/hidg0",
+    "keyboard_outputs": ["/dev/hidg0"],
     "mouse_outputs": ["/dev/hidg1", "/dev/hidg2"]
   }
 }
