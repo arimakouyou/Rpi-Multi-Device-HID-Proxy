@@ -1,0 +1,181 @@
+# 設定ガイド
+
+## 設定ファイル
+
+設定ファイルは `/etc/multi-hid-proxy/config.json` にあります。
+
+### 設定例
+
+```json
+{
+  "email_address": "your.email@domain.com",
+  "gpio_settings": {
+    "hold_time": 1.5,
+    "bounce_time": 0.05,
+    "combination_check_delay": 0.2
+  },
+  "led_settings": {
+    "enabled": true,
+    "gpio_pin": 18,
+    "led_count": 3,
+    "brightness": 50,
+    "colors": {
+      "remap_enabled": [0, 255, 0],
+      "remap_disabled": [255, 0, 0]
+    }
+  },
+  "logging": {
+    "level": "INFO"
+  },
+  "hid_paths": {
+    "keyboard_outputs": ["/dev/hidg0"],
+    "mouse_outputs": ["/dev/hidg1", "/dev/hidg2"]
+  }
+}
+```
+
+## 設定項目の詳細
+
+### email_address
+
+GPIOボタンのマクロ機能で使用するメールアドレス。ボタン長押しでこのアドレスを入力できます。
+
+### gpio_settings
+
+GPIOボタンの動作設定。
+
+| パラメータ | 説明 | デフォルト |
+|-----------|------|-----------|
+| `hold_time` | 長押し判定時間（秒） | 1.5 |
+| `bounce_time` | チャタリング防止時間（秒） | 0.05 |
+| `combination_check_delay` | コンビネーション判定遅延（秒） | 0.2 |
+
+### led_settings
+
+NeoPixel LEDの設定。
+
+| パラメータ | 説明 | デフォルト |
+|-----------|------|-----------|
+| `enabled` | LED機能の有効/無効 | true |
+| `gpio_pin` | LEDデータピン（GPIO番号） | 18 |
+| `led_count` | LED数 | 3 |
+| `brightness` | 明るさ（0-255） | 50 |
+| `colors.remap_enabled` | リマップ有効時の色 [R,G,B] | [0,255,0] (緑) |
+| `colors.remap_disabled` | リマップ無効時の色 [R,G,B] | [255,0,0] (赤) |
+
+### logging
+
+ログ設定。
+
+| パラメータ | 説明 | 選択肢 |
+|-----------|------|--------|
+| `level` | ログレベル | DEBUG, INFO, WARNING, ERROR |
+
+### hid_paths
+
+HIDデバイスパスの設定。
+
+| パラメータ | 説明 |
+|-----------|------|
+| `keyboard_outputs` | キーボード出力デバイスのリスト |
+| `mouse_outputs` | マウス出力デバイスのリスト |
+
+デバイス数を増減する場合は、このリストを編集してください。変更後は再起動が必要です。
+
+## udevルールのカスタマイズ
+
+新しいマウスデバイスを追加するには、`/etc/udev/rules.d/99-mouse-proxy.rules` を編集します。
+
+### 現在のルール
+
+```
+# HHKB Studio Mouse
+ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="HHKB-Studio[1-4] Mouse", TAG+="systemd", ENV{SYSTEMD_WANTS}+="mouse-proxy@%k.service"
+
+# Logitech Mouse
+ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Logitech*", TAG+="systemd", ENV{SYSTEMD_WANTS}+="mouse-proxy@%k.service"
+```
+
+### 新しいデバイスの追加
+
+1. デバイス名を確認
+
+```bash
+cat /proc/bus/input/devices
+```
+
+または
+
+```bash
+udevadm info /dev/input/eventX
+```
+
+2. ルールを追加
+
+```
+# Example: Razer Mouse
+ACTION=="add", SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="Razer*", TAG+="systemd", ENV{SYSTEMD_WANTS}+="mouse-proxy@%k.service"
+```
+
+3. ルールを再読み込み
+
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+## GPIOボタンの配線
+
+Keybow/GPIOボタンを使用する場合の配線:
+
+| ボタン | GPIO | 機能 |
+|-------|------|------|
+| ボタン1 | GPIO5 | 短押し: キー送信、長押し: メールアドレス入力 |
+| ボタン2 | GPIO6 | 短押し: キー送信、長押し: リマップ切替 |
+| ボタン3 | GPIO17 | 短押し: キー送信 |
+
+※ GPIO番号はソースコード（`keyboard_proxy.py`）で定義されています。
+
+## キーリマップの設定
+
+キーリマップは `src/keyboard_proxy.py` の `KeyboardProxy.remap()` メソッドで定義されています。
+
+現在のリマップ例:
+- CapsLock → Left Control
+
+カスタマイズする場合は、ソースコードを直接編集してください。
+
+## サービスの管理
+
+### サービスの再起動
+
+設定変更後:
+
+```bash
+sudo systemctl restart keyboard-proxy.service
+```
+
+### ログの確認
+
+```bash
+# キーボードプロキシ
+sudo journalctl -u keyboard-proxy.service -f
+
+# マウスプロキシ
+sudo journalctl -u mouse-proxy@event*.service -f
+
+# HIDガジェット
+sudo journalctl -u multi-hid-gadget.service
+```
+
+### デバッグモード
+
+詳細なログを出力するには、`config.json` のログレベルを変更:
+
+```json
+{
+  "logging": {
+    "level": "DEBUG"
+  }
+}
+```

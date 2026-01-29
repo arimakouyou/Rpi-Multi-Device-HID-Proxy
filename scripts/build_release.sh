@@ -1,8 +1,9 @@
 #!/bin/bash
 set -e
 
-# プロジェクトルートディレクトリ (スクリプトのある場所)
-PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+# プロジェクトルートディレクトリ (scripts/ の親ディレクトリ)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DIST_DIR="${PROJECT_ROOT}/dist"
 ARCHIVE_NAME="multi-hid-proxy-release.tar.gz"
 
@@ -97,23 +98,22 @@ echo "[3/4] 必要なファイルをコピーしています..."
 cp "$BINARY_PATH" "$DIST_DIR/"
 
 # スクリプトと設定ファイル
-# install.sh はルートにあるものをコピー
-cp "${PROJECT_ROOT}/install.sh" "$DIST_DIR/"
-cp "${PROJECT_ROOT}/config.json.sample" "$DIST_DIR/"
+cp "${PROJECT_ROOT}/scripts/install.sh" "$DIST_DIR/"
+cp "${PROJECT_ROOT}/config/config.json.sample" "$DIST_DIR/"
 
 # Pythonスクリプト (Keyboard Proxy等はまだPythonなので)
-cp "${PROJECT_ROOT}/proxy_core.py" "$DIST_DIR/"
-cp "${PROJECT_ROOT}/keyboard_proxy.py" "$DIST_DIR/"
-cp "${PROJECT_ROOT}/hid_keys.py" "$DIST_DIR/"
-cp "${PROJECT_ROOT}/setup_hid_gadget.sh" "$DIST_DIR/"
+cp "${PROJECT_ROOT}/src/proxy_core.py" "$DIST_DIR/"
+cp "${PROJECT_ROOT}/src/keyboard_proxy.py" "$DIST_DIR/"
+cp "${PROJECT_ROOT}/src/hid_keys.py" "$DIST_DIR/"
+cp "${PROJECT_ROOT}/scripts/setup_hid_gadget.sh" "$DIST_DIR/"
 
 # systemd サービスファイル
-cp "${PROJECT_ROOT}/keyboard-proxy.service" "$DIST_DIR/"
-cp "${PROJECT_ROOT}/mouse-proxy@.service" "$DIST_DIR/"
-cp "${PROJECT_ROOT}/multi-hid-gadget.service" "$DIST_DIR/"
+cp "${PROJECT_ROOT}/systemd/keyboard-proxy.service" "$DIST_DIR/"
+cp "${PROJECT_ROOT}/systemd/mouse-proxy@.service" "$DIST_DIR/"
+cp "${PROJECT_ROOT}/systemd/multi-hid-gadget.service" "$DIST_DIR/"
 
 # udev ルール
-cp "${PROJECT_ROOT}/99-mouse-proxy.rules" "$DIST_DIR/"
+cp "${PROJECT_ROOT}/udev/99-mouse-proxy.rules" "$DIST_DIR/"
 
 # 実行権限の付与 (念のため)
 chmod +x "$DIST_DIR/install.sh"

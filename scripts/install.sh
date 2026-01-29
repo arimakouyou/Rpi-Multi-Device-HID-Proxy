@@ -89,6 +89,9 @@ echo "依存関係は満たされています。"
 echo ""
 
 # --- スクリプトのインストール ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
 INSTALL_DIR="/usr/local/bin"
 SERVICE_DIR="/etc/systemd/system"
 CONFIG_DIR="/etc/multi-hid-proxy"
@@ -101,25 +104,24 @@ sudo mkdir -p "$CONFIG_DIR"
 
 # Pythonスクリプトの配置
 echo "Pythonスクリプトを配置します..."
-sudo cp proxy_core.py "$INSTALL_DIR/"
-sudo cp keyboard_proxy.py "$INSTALL_DIR/"
-# sudo cp mouse_proxy.py "$INSTALL_DIR/" # Rust版に置き換え
-sudo cp hid_keys.py "$INSTALL_DIR/"
-sudo cp setup_hid_gadget.sh "$INSTALL_DIR/"
+sudo cp "$PROJECT_ROOT/src/proxy_core.py" "$INSTALL_DIR/"
+sudo cp "$PROJECT_ROOT/src/keyboard_proxy.py" "$INSTALL_DIR/"
+sudo cp "$PROJECT_ROOT/src/hid_keys.py" "$INSTALL_DIR/"
+sudo cp "$SCRIPT_DIR/setup_hid_gadget.sh" "$INSTALL_DIR/"
 sudo chmod +x "$INSTALL_DIR/keyboard_proxy.py"
-# sudo chmod +x "$INSTALL_DIR/mouse_proxy.py" # Removed
 sudo chmod +x "$INSTALL_DIR/setup_hid_gadget.sh"
 
 # Rustバイナリの配置
 echo "Mouse Proxy (Rust) を配置します..."
-# Rustバイナリの配置
-echo "Mouse Proxy (Rust) を配置します..."
-# アーカイブを展開したカレントディレクトリにあることを想定
+# アーカイブを展開した場合はカレントディレクトリ、それ以外はプロジェクトルートを参照
 if [ -f "./mouse_proxy_rs" ]; then
     echo "同梱のバイナリを使用します..."
     sudo cp ./mouse_proxy_rs "$INSTALL_DIR/"
+elif [ -f "$PROJECT_ROOT/mouse_proxy_rs" ]; then
+    echo "プロジェクトルートのバイナリを使用します..."
+    sudo cp "$PROJECT_ROOT/mouse_proxy_rs" "$INSTALL_DIR/"
 else
-    echo "エラー: 'mouse_proxy_rs' バイナリがカレントディレクトリに見つかりません。"
+    echo "エラー: 'mouse_proxy_rs' バイナリが見つかりません。"
     echo "ビルドアーカイブが正しく展開されているか確認してください。"
     exit 1
 fi
@@ -131,18 +133,18 @@ fi
 
 if [ ! -f "$CONFIG_DIR/config.json" ]; then
     echo "設定ファイルを配置します..."
-    sudo cp config.json.sample "$CONFIG_DIR/config.json"
+    sudo cp "$PROJECT_ROOT/config/config.json.sample" "$CONFIG_DIR/config.json"
 fi
 
 # サービスのインストール
 echo "systemdサービスをインストールします..."
-sudo cp keyboard-proxy.service "$SERVICE_DIR/"
-sudo cp mouse-proxy@.service "$SERVICE_DIR/"
-sudo cp multi-hid-gadget.service "$SERVICE_DIR/"
+sudo cp "$PROJECT_ROOT/systemd/keyboard-proxy.service" "$SERVICE_DIR/"
+sudo cp "$PROJECT_ROOT/systemd/mouse-proxy@.service" "$SERVICE_DIR/"
+sudo cp "$PROJECT_ROOT/systemd/multi-hid-gadget.service" "$SERVICE_DIR/"
 
 # UDEVルールのインストール
 echo "UDEVルールをインストールします..."
-sudo cp 99-mouse-proxy.rules "/etc/udev/rules.d/"
+sudo cp "$PROJECT_ROOT/udev/99-mouse-proxy.rules" "/etc/udev/rules.d/"
 
 # --- Systemdサービスの設定 ---
 echo "Systemdサービスをリロードして有効化しています..."
@@ -151,14 +153,6 @@ sudo udevadm control --reload-rules
 sudo udevadm trigger
 sudo systemctl enable keyboard-proxy.service
 sudo systemctl enable multi-hid-gadget.service
-sudo systemctl disable mouse-proxy.service # Disable old service
-
-echo ""
-echo "インストールが完了しました。"
-echo "以下のコマンドでサービスを開始してください:"
-echo "sudo systemctl start multi-hid-gadget.service"
-echo "sudo systemctl start keyboard-proxy.service"
-echo "sudo systemctl start mouse-proxy.service"
 
 echo ""
 echo "インストールが完了しました。"
