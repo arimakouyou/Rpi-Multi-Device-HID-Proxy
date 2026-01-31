@@ -1,6 +1,52 @@
+"""
+HID Keys Module - HIDキーコードマッピングモジュール
+====================================================
+
+このモジュールは、LinuxのEvdevキーコード（KEY_*）をUSB HIDキーコードに
+変換するためのマッピング辞書を提供します。
+
+USB HID Usage Tables仕様に基づいています:
+https://www.usb.org/document-library/hid-usage-tables-14
+
+使用方法:
+    from hid_keys import hid_key_map
+    
+    # EvdevキーコードからHIDキーコードを取得
+    hid_code = hid_key_map.get('KEY_A', 0)  # 0x04 を返す
+
+キーコードの構造:
+    - 0x00-0x03: 予約/エラーコード
+    - 0x04-0x1D: アルファベットキー (A-Z)
+    - 0x1E-0x27: 数字キー (1-9, 0)
+    - 0x28-0x38: 特殊キー (Enter, Esc, Backspace等)
+    - 0x39-0x53: ファンクションキーとコントロールキー
+    - 0x54-0x67: テンキー
+    - 0x68-0x9F: 追加のファンクションキーと特殊キー
+    - 0xE0-0xE7: モディファイアキー (Ctrl, Shift, Alt, Meta)
+    - 0xE8-0xFF: メディアキー
+
+Note:
+    一部のキーコードは重複しています（例: KEY_SLEEP と KEY_POWER が同じ 0x66）。
+    これはUSB HID仕様による制限です。
+"""
+
+# =============================================================================
+# HIDキーコードマッピング辞書
+# =============================================================================
+# LinuxのEvdevキー名をUSB HIDキーコードにマッピングします。
+# キー名は ecodes.KEY[] で取得できる文字列に対応しています。
+
 hid_key_map = {
-    'KEY_NONE': 0x00,
-    'KEY_ERR_OVF': 0x01,
+    # -------------------------------------------------------------------------
+    # 予約済み/特殊コード (0x00-0x03)
+    # -------------------------------------------------------------------------
+    'KEY_NONE': 0x00,      # キー入力なし（ヌルコード）
+    'KEY_ERR_OVF': 0x01,   # キーボードエラーロールオーバー（キー押下が多すぎる）
+    
+    # -------------------------------------------------------------------------
+    # アルファベットキー (0x04-0x1D)
+    # -------------------------------------------------------------------------
+    # USB HID仕様では、アルファベットはA=0x04から始まり、Z=0x1Dまで連続しています。
     'KEY_A': 0x04,
     'KEY_B': 0x05,
     'KEY_C': 0x06,
@@ -27,6 +73,12 @@ hid_key_map = {
     'KEY_X': 0x1b,
     'KEY_Y': 0x1c,
     'KEY_Z': 0x1d,
+    
+    # -------------------------------------------------------------------------
+    # 数字キー (0x1E-0x27)
+    # -------------------------------------------------------------------------
+    # メインキーボードの数字キー（テンキーではない）
+    # 注意: 1-9, 0 の順序でマッピングされています（0は最後）
     'KEY_1': 0x1e,
     'KEY_2': 0x1f,
     'KEY_3': 0x20,
@@ -37,24 +89,34 @@ hid_key_map = {
     'KEY_8': 0x25,
     'KEY_9': 0x26,
     'KEY_0': 0x27,
-    'KEY_ENTER': 0x28,
-    'KEY_ESC': 0x29,
-    'KEY_BACKSPACE': 0x2a,
-    'KEY_TAB': 0x2b,
-    'KEY_SPACE': 0x2c,
-    'KEY_MINUS': 0x2d,
-    'KEY_EQUAL': 0x2e,
-    'KEY_LEFTBRACE': 0x2f,
-    'KEY_RIGHTBRACE': 0x30,
-    'KEY_BACKSLASH': 0x31,
-    'KEY_HASHTILDE': 0x32,
-    'KEY_SEMICOLON': 0x33,
-    'KEY_APOSTROPHE': 0x34,
-    'KEY_GRAVE': 0x35,
-    'KEY_COMMA': 0x36,
-    'KEY_DOT': 0x37,
-    'KEY_SLASH': 0x38,
-    'KEY_CAPSLOCK': 0x39,
+    
+    # -------------------------------------------------------------------------
+    # 特殊キー・記号キー (0x28-0x38)
+    # -------------------------------------------------------------------------
+    'KEY_ENTER': 0x28,      # Enterキー（メインキーボード）
+    'KEY_ESC': 0x29,        # Escapeキー
+    'KEY_BACKSPACE': 0x2a,  # Backspaceキー
+    'KEY_TAB': 0x2b,        # Tabキー
+    'KEY_SPACE': 0x2c,      # スペースキー
+    'KEY_MINUS': 0x2d,      # マイナス/アンダースコア (- / _)
+    'KEY_EQUAL': 0x2e,      # イコール/プラス (= / +)
+    'KEY_LEFTBRACE': 0x2f,  # 左大括弧 ([)
+    'KEY_RIGHTBRACE': 0x30, # 右大括弧 (])
+    'KEY_BACKSLASH': 0x31,  # バックスラッシュ (\)
+    'KEY_HASHTILDE': 0x32,  # 非USキーボード用ハッシュ/チルダ
+    'KEY_SEMICOLON': 0x33,  # セミコロン/コロン (; / :)
+    'KEY_APOSTROPHE': 0x34, # アポストロフィ/引用符 (' / ")
+    'KEY_GRAVE': 0x35,      # グレイヴアクセント/チルダ (` / ~)
+    'KEY_COMMA': 0x36,      # コンマ/小なり (, / <)
+    'KEY_DOT': 0x37,        # ピリオド/大なり (. / >)
+    'KEY_SLASH': 0x38,      # スラッシュ/クエスチョン (/ / ?)
+    
+    # -------------------------------------------------------------------------
+    # ロックキー・ファンクションキー (0x39-0x52)
+    # -------------------------------------------------------------------------
+    'KEY_CAPSLOCK': 0x39,   # Caps Lockキー
+    
+    # ファンクションキー F1-F12
     'KEY_F1': 0x3a,
     'KEY_F2': 0x3b,
     'KEY_F3': 0x3c,
@@ -67,41 +129,60 @@ hid_key_map = {
     'KEY_F10': 0x43,
     'KEY_F11': 0x44,
     'KEY_F12': 0x45,
-    'KEY_SYSRQ': 0x46,
-    'KEY_SCROLLLOCK': 0x47,
-    'KEY_PAUSE': 0x48,
-    'KEY_INSERT': 0x49,
-    'KEY_HOME': 0x4a,
-    'KEY_PAGEUP': 0x4b,
-    'KEY_DELETE': 0x4c,
-    'KEY_END': 0x4d,
-    'KEY_PAGEDOWN': 0x4e,
-    'KEY_RIGHT': 0x4f,
-    'KEY_LEFT': 0x50,
-    'KEY_DOWN': 0x51,
-    'KEY_UP': 0x52,
-    'KEY_NUMLOCK': 0x53,
-    'KEY_KPSLASH': 0x54,
-    'KEY_KPASTERISK': 0x55,
-    'KEY_KPMINUS': 0x56,
-    'KEY_KPPLUS': 0x57,
-    'KEY_KPENTER': 0x58,
-    'KEY_KP1': 0x59,
-    'KEY_KP2': 0x5a,
-    'KEY_KP3': 0x5b,
-    'KEY_KP4': 0x5c,
-    'KEY_KP5': 0x5d,
-    'KEY_KP6': 0x5e,
-    'KEY_KP7': 0x5f,
-    'KEY_KP8': 0x60,
-    'KEY_KP9': 0x61,
-    'KEY_KP0': 0x62,
-    'KEY_KPDOT': 0x63,
-    'KEY_102ND': 0x64,
-    'KEY_COMPOSE': 0x65,
-    'KEY_POWER': 0x66,
-    'KEY_SLEEP': 0x66,
-    'KEY_KPEQUAL': 0x67,
+    
+    # システムキー
+    'KEY_SYSRQ': 0x46,      # Print Screen / SysRq
+    'KEY_SCROLLLOCK': 0x47, # Scroll Lockキー
+    'KEY_PAUSE': 0x48,      # Pause / Breakキー
+    
+    # ナビゲーションキー
+    'KEY_INSERT': 0x49,     # Insertキー
+    'KEY_HOME': 0x4a,       # Homeキー
+    'KEY_PAGEUP': 0x4b,     # Page Upキー
+    'KEY_DELETE': 0x4c,     # Deleteキー
+    'KEY_END': 0x4d,        # Endキー
+    'KEY_PAGEDOWN': 0x4e,   # Page Downキー
+    
+    # 矢印キー
+    'KEY_RIGHT': 0x4f,      # 右矢印
+    'KEY_LEFT': 0x50,       # 左矢印
+    'KEY_DOWN': 0x51,       # 下矢印
+    'KEY_UP': 0x52,         # 上矢印
+    
+    # -------------------------------------------------------------------------
+    # テンキー / NumPad (0x53-0x67)
+    # -------------------------------------------------------------------------
+    'KEY_NUMLOCK': 0x53,    # Num Lockキー
+    'KEY_KPSLASH': 0x54,    # テンキー /
+    'KEY_KPASTERISK': 0x55, # テンキー *
+    'KEY_KPMINUS': 0x56,    # テンキー -
+    'KEY_KPPLUS': 0x57,     # テンキー +
+    'KEY_KPENTER': 0x58,    # テンキー Enter
+    'KEY_KP1': 0x59,        # テンキー 1 / End
+    'KEY_KP2': 0x5a,        # テンキー 2 / 下矢印
+    'KEY_KP3': 0x5b,        # テンキー 3 / Page Down
+    'KEY_KP4': 0x5c,        # テンキー 4 / 左矢印
+    'KEY_KP5': 0x5d,        # テンキー 5
+    'KEY_KP6': 0x5e,        # テンキー 6 / 右矢印
+    'KEY_KP7': 0x5f,        # テンキー 7 / Home
+    'KEY_KP8': 0x60,        # テンキー 8 / 上矢印
+    'KEY_KP9': 0x61,        # テンキー 9 / Page Up
+    'KEY_KP0': 0x62,        # テンキー 0 / Insert
+    'KEY_KPDOT': 0x63,      # テンキー . / Delete
+    
+    # -------------------------------------------------------------------------
+    # 追加キー (0x64-0x67)
+    # -------------------------------------------------------------------------
+    'KEY_102ND': 0x64,      # 非USキーボードの102番目のキー
+    'KEY_COMPOSE': 0x65,    # Composeキー / アプリケーションキー
+    'KEY_POWER': 0x66,      # 電源キー
+    'KEY_SLEEP': 0x66,      # スリープキー（電源キーと同じコード）
+    'KEY_KPEQUAL': 0x67,    # テンキー =
+    
+    # -------------------------------------------------------------------------
+    # 拡張ファンクションキー F13-F24 (0x68-0x73)
+    # -------------------------------------------------------------------------
+    # 一部のフルサイズキーボードで使用可能
     'KEY_F13': 0x68,
     'KEY_F14': 0x69,
     'KEY_F15': 0x6a,
@@ -114,83 +195,122 @@ hid_key_map = {
     'KEY_F22': 0x71,
     'KEY_F23': 0x72,
     'KEY_F24': 0x73,
-    'KEY_OPEN': 0x74,
-    'KEY_SELECT': 0x74,
-    'KEY_EXECUTE': 0x74,
-    'KEY_HELP': 0x75,
-    'KEY_PROPS': 0x76,
-    'KEY_FRONT': 0x77,
-    'KEY_STOP': 0x78,
-    'KEY_AGAIN': 0x79,
-    'KEY_UNDO': 0x7a,
-    'KEY_CUT': 0x7b,
-    'KEY_COPY': 0x7c,
-    'KEY_PASTE': 0x7d,
-    'KEY_FIND': 0x7e,
-    'KEY_MUTE': 0x7f,
-    'KEY_VOLUMEUP': 0x80,
-    'KEY_VOLUMEDOWN': 0x81,
-    'KEY_KPCOMMA': 0x85,
-    'KEY_RO': 0x87,
-    'KEY_KATAKANAHIRAGANA': 0x88,
-    'KEY_YEN': 0x89,
-    'KEY_HENKAN': 0x8a,
-    'KEY_MUHENKAN': 0x8b,
-    'KEY_KPJPCOMMA': 0x8c,
-    'KEY_HANGEUL': 0x90,
-    'KEY_HANJA': 0x91,
-    'KEY_KATAKANA': 0x92,
-    'KEY_HIRAGANA': 0x93,
-    'KEY_ZENKAKUHANKAKU': 0x94,
-    'KEY_LANG1': 0x95,
-    'KEY_LANG2': 0x96,
-    'KEY_LANG3': 0x97,
-    'KEY_LANG4': 0x98,
-    'KEY_CANCEL': 0x99,
-    'KEY_LANG5': 0x99,
-    'KEY_ALTERASE': 0x99,
-    'KEY_ATTN': 0x9a,
-    'KEY_LANG6': 0x9a,
-    'KEY_LANG7': 0x9b,
-    'KEY_CLEAR': 0x9c,
-    'KEY_LANG8': 0x9c,
-    'KEY_PRIOR': 0x9d,
-    'KEY_LANG9': 0x9d,
-    'KEY_RETURN': 0x9e,
-    'KEY_SEPARATOR': 0x9f,
-    'KEY_OUT': 0xa0,
-    'KEY_OPER': 0xa1,
-    'KEY_CLEARAGAIN': 0xa2,
-    'KEY_CRSEL': 0xa3,
-    'KEY_EXSEL': 0xa4,
-    'KEY_KPLEFTPAREN': 0xb6,
-    'KEY_KPRIGHTPAREN': 0xb7,
-    'KEY_LEFTCTRL': 0xe0,
-    'KEY_LEFTSHIFT': 0xe1,
-    'KEY_LEFTALT': 0xe2,
-    'KEY_LEFTMETA': 0xe3,
-    'KEY_RIGHTCTRL': 0xe4,
-    'KEY_RIGHTSHIFT': 0xe5,
-    'KEY_RIGHTALT': 0xe6,
-    'KEY_RIGHTMETA': 0xe7,
-    'KEY_MEDIA_PLAYPAUSE': 0xe8,
-    'KEY_MEDIA_STOPCD': 0xe9,
-    'KEY_MEDIA_PREVIOUSSONG': 0xea,
-    'KEY_MEDIA_NEXTSONG': 0xeb,
-    'KEY_MEDIA_EJECTCD': 0xec,
-    'KEY_MEDIA_VOLUMEUP': 0xed,
-    'KEY_MEDIA_VOLUMEDOWN': 0xee,
-    'KEY_MEDIA_MUTE': 0xef,
-    'KEY_MEDIA_WWW': 0xf0,
-    'KEY_MEDIA_BACK': 0xf1,
-    'KEY_MEDIA_FORWARD': 0xf2,
-    'KEY_MEDIA_STOP': 0xf3,
-    'KEY_MEDIA_FIND': 0xf4,
-    'KEY_MEDIA_SCROLLUP': 0xf5,
-    'KEY_MEDIA_SCROLLDOWN': 0xf6,
-    'KEY_MEDIA_EDIT': 0xf7,
-    'KEY_MEDIA_SLEEP': 0xf8,
-    'KEY_MEDIA_COFFEE': 0xf9,
-    'KEY_MEDIA_REFRESH': 0xfa,
-    'KEY_MEDIA_CALC': 0xfb,
+    
+    # -------------------------------------------------------------------------
+    # システム・編集キー (0x74-0x85)
+    # -------------------------------------------------------------------------
+    'KEY_OPEN': 0x74,       # 開く
+    'KEY_SELECT': 0x74,     # 選択（OPENと同じコード）
+    'KEY_EXECUTE': 0x74,    # 実行（OPENと同じコード）
+    'KEY_HELP': 0x75,       # ヘルプ
+    'KEY_PROPS': 0x76,      # プロパティ
+    'KEY_FRONT': 0x77,      # フロント
+    'KEY_STOP': 0x78,       # 停止
+    'KEY_AGAIN': 0x79,      # 再実行
+    'KEY_UNDO': 0x7a,       # 元に戻す
+    'KEY_CUT': 0x7b,        # 切り取り
+    'KEY_COPY': 0x7c,       # コピー
+    'KEY_PASTE': 0x7d,      # 貼り付け
+    'KEY_FIND': 0x7e,       # 検索
+    'KEY_MUTE': 0x7f,       # ミュート
+    'KEY_VOLUMEUP': 0x80,   # 音量上げ
+    'KEY_VOLUMEDOWN': 0x81, # 音量下げ
+    'KEY_KPCOMMA': 0x85,    # テンキー コンマ
+    
+    # -------------------------------------------------------------------------
+    # 日本語キーボード固有キー (0x87-0x94)
+    # -------------------------------------------------------------------------
+    # JIS配列キーボードで使用される特殊キー
+    'KEY_RO': 0x87,                 # ろ / アンダーバーキー（JIS配列）
+    'KEY_KATAKANAHIRAGANA': 0x88,   # カタカナ/ひらがなキー
+    'KEY_YEN': 0x89,                # 円/パイプキー（¥ / |）
+    'KEY_HENKAN': 0x8a,             # 変換キー
+    'KEY_MUHENKAN': 0x8b,           # 無変換キー
+    'KEY_KPJPCOMMA': 0x8c,          # テンキー コンマ（日本語）
+    
+    # -------------------------------------------------------------------------
+    # 韓国語キーボード固有キー (0x90-0x91)
+    # -------------------------------------------------------------------------
+    'KEY_HANGEUL': 0x90,    # ハングル/英数切り替え
+    'KEY_HANJA': 0x91,      # 漢字変換
+    
+    # -------------------------------------------------------------------------
+    # 追加の日本語キーボードキー (0x92-0x94)
+    # -------------------------------------------------------------------------
+    'KEY_KATAKANA': 0x92,   # カタカナキー
+    'KEY_HIRAGANA': 0x93,   # ひらがなキー
+    'KEY_ZENKAKUHANKAKU': 0x94,  # 全角/半角キー
+    
+    # -------------------------------------------------------------------------
+    # 言語キーとシステムキー (0x95-0xA4)
+    # -------------------------------------------------------------------------
+    'KEY_LANG1': 0x95,      # 言語1（韓国語: ハングル）
+    'KEY_LANG2': 0x96,      # 言語2（韓国語: 漢字）
+    'KEY_LANG3': 0x97,      # 言語3（日本語: カタカナ）
+    'KEY_LANG4': 0x98,      # 言語4（日本語: ひらがな）
+    'KEY_CANCEL': 0x99,     # キャンセル
+    'KEY_LANG5': 0x99,      # 言語5（同じコード）
+    'KEY_ALTERASE': 0x99,   # 代替消去（同じコード）
+    'KEY_ATTN': 0x9a,       # アテンション
+    'KEY_LANG6': 0x9a,      # 言語6（同じコード）
+    'KEY_LANG7': 0x9b,      # 言語7
+    'KEY_CLEAR': 0x9c,      # クリア
+    'KEY_LANG8': 0x9c,      # 言語8（同じコード）
+    'KEY_PRIOR': 0x9d,      # 優先
+    'KEY_LANG9': 0x9d,      # 言語9（同じコード）
+    'KEY_RETURN': 0x9e,     # リターン
+    'KEY_SEPARATOR': 0x9f,  # 区切り
+    'KEY_OUT': 0xa0,        # 出力
+    'KEY_OPER': 0xa1,       # 操作
+    'KEY_CLEARAGAIN': 0xa2, # 再クリア
+    'KEY_CRSEL': 0xa3,      # カーソル選択
+    'KEY_EXSEL': 0xa4,      # 拡張選択
+    
+    # -------------------------------------------------------------------------
+    # テンキー括弧 (0xB6-0xB7)
+    # -------------------------------------------------------------------------
+    'KEY_KPLEFTPAREN': 0xb6,  # テンキー (
+    'KEY_KPRIGHTPAREN': 0xb7, # テンキー )
+    
+    # -------------------------------------------------------------------------
+    # モディファイアキー (0xE0-0xE7)
+    # -------------------------------------------------------------------------
+    # これらのキーはHIDレポートのモディファイアバイトで処理されます。
+    # 通常、これらのコードは直接使用されませんが、
+    # 一貫性のためにマッピングに含まれています。
+    'KEY_LEFTCTRL': 0xe0,   # 左Ctrl
+    'KEY_LEFTSHIFT': 0xe1,  # 左Shift
+    'KEY_LEFTALT': 0xe2,    # 左Alt
+    'KEY_LEFTMETA': 0xe3,   # 左Windows/Command/Metaキー
+    'KEY_RIGHTCTRL': 0xe4,  # 右Ctrl
+    'KEY_RIGHTSHIFT': 0xe5, # 右Shift
+    'KEY_RIGHTALT': 0xe6,   # 右Alt / AltGr
+    'KEY_RIGHTMETA': 0xe7,  # 右Windows/Command/Metaキー
+    
+    # -------------------------------------------------------------------------
+    # メディアキー (0xE8-0xFB)
+    # -------------------------------------------------------------------------
+    # マルチメディアキーボードで使用されるキー
+    # 注意: これらは実際にはHID Consumer Page (0x0C) の用途ですが、
+    #       ここでは便宜上含めています
+    'KEY_MEDIA_PLAYPAUSE': 0xe8,     # 再生/一時停止
+    'KEY_MEDIA_STOPCD': 0xe9,        # 停止
+    'KEY_MEDIA_PREVIOUSSONG': 0xea,  # 前のトラック
+    'KEY_MEDIA_NEXTSONG': 0xeb,      # 次のトラック
+    'KEY_MEDIA_EJECTCD': 0xec,       # CD/DVDイジェクト
+    'KEY_MEDIA_VOLUMEUP': 0xed,      # 音量上げ（メディアキー）
+    'KEY_MEDIA_VOLUMEDOWN': 0xee,    # 音量下げ（メディアキー）
+    'KEY_MEDIA_MUTE': 0xef,          # ミュート（メディアキー）
+    'KEY_MEDIA_WWW': 0xf0,           # ウェブブラウザ起動
+    'KEY_MEDIA_BACK': 0xf1,          # ブラウザ戻る
+    'KEY_MEDIA_FORWARD': 0xf2,       # ブラウザ進む
+    'KEY_MEDIA_STOP': 0xf3,          # ブラウザ停止
+    'KEY_MEDIA_FIND': 0xf4,          # 検索
+    'KEY_MEDIA_SCROLLUP': 0xf5,      # スクロールアップ
+    'KEY_MEDIA_SCROLLDOWN': 0xf6,    # スクロールダウン
+    'KEY_MEDIA_EDIT': 0xf7,          # 編集
+    'KEY_MEDIA_SLEEP': 0xf8,         # スリープ（メディアキー）
+    'KEY_MEDIA_COFFEE': 0xf9,        # コーヒーブレイク/スクリーンセーバー
+    'KEY_MEDIA_REFRESH': 0xfa,       # 更新
+    'KEY_MEDIA_CALC': 0xfb,          # 電卓起動
 }
