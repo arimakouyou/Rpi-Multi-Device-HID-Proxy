@@ -116,10 +116,20 @@ fi
 # -----------------------------------------------------------------------------
 # 5. SPI バスの有効化 (Keybow Mini APA102 LED 用)
 # -----------------------------------------------------------------------------
-# /boot/firmware/config.txt に dtparam=spi=on が無ければ追記する。
+# Raspberry Pi OS Bookworm 以降は /boot/firmware/config.txt、
+# Bullseye 以前は /boot/config.txt を使う。両方を探して存在する方を
+# 書き換える。dtparam=spi=on が無ければ追記する。
 # 反映には Pi の再起動が必要。
-BOOT_CONFIG="/boot/firmware/config.txt"
-if [ -f "$BOOT_CONFIG" ]; then
+BOOT_CONFIG=""
+for c in /boot/firmware/config.txt /boot/config.txt; do
+    if [ -f "$c" ]; then
+        BOOT_CONFIG="$c"
+        break
+    fi
+done
+
+if [ -n "$BOOT_CONFIG" ]; then
+    echo "SPI 設定対象: $BOOT_CONFIG"
     if grep -qE "^[[:space:]]*dtparam=spi=on" "$BOOT_CONFIG"; then
         echo "SPI は既に有効化されています。"
     elif grep -qE "^[[:space:]]*#?[[:space:]]*dtparam=spi=" "$BOOT_CONFIG"; then
@@ -132,7 +142,8 @@ if [ -f "$BOOT_CONFIG" ]; then
         echo "  -> 反映には再起動が必要です。"
     fi
 else
-    echo "警告: $BOOT_CONFIG が見つかりません。SPI を手動で有効化してください。"
+    echo "警告: /boot/firmware/config.txt も /boot/config.txt も見つかりません。"
+    echo "      raspi-config 等で SPI を手動で有効化してください。"
 fi
 
 echo "依存関係は満たされています。"

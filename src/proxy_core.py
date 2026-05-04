@@ -21,6 +21,7 @@ Proxy Core Module - プロキシコアモジュール
 
 import logging
 import asyncio
+import copy
 import json
 import os
 import signal
@@ -61,7 +62,8 @@ DEFAULT_CONFIG = {
         "spi_bus": 0,               # /dev/spidev{spi_bus}.{spi_device}
         "spi_device": 0,            # Keybow Mini は /dev/spidev0.0
         "spi_hz": 4000000,          # SPI クロック (Hz)。APA102 は 4-8MHz が安定
-        "brightness": 50,           # 明るさ (0-255)、APA102 グローバル輝度 5bit にマップ
+        "brightness": 25,           # 明るさ (0-255)、APA102 グローバル輝度 5bit にマップ
+                                    # 25 は約 3/31 で室内常用に程よい控えめの明るさ
         "boot_self_test": True,     # 起動時に赤→緑→青の動作確認シーケンスを流す
         "colors": {
             "remap_enabled": [0, 255, 0],   # リマップ有効: 緑
@@ -137,8 +139,12 @@ def load_config(config_path=None):
             logging.warning("Config file not found. Searched: " + ", ".join(search_paths))
             config_path = search_paths[0]  # デフォルトパスを設定（後でエラー処理）
     
-    # デフォルト設定のコピーを作成（元の辞書を変更しないため）
-    config = DEFAULT_CONFIG.copy()
+    # デフォルト設定のディープコピーを作成。
+    # 浅いコピー (.copy()) では DEFAULT_CONFIG 内のネスト辞書 (gpio_settings,
+    # led_settings, hid_paths) が同じ参照のままで、_deep_merge が破壊的に
+    # 更新するため DEFAULT_CONFIG 自体がユーザー設定で汚染されてしまう。
+    # 必ず copy.deepcopy を使うこと。
+    config = copy.deepcopy(DEFAULT_CONFIG)
     
     try:
         if os.path.exists(config_path):
