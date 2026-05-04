@@ -31,6 +31,7 @@ import logging
 import asyncio
 import signal
 import re
+import threading
 import time
 import evdev
 from evdev import InputDevice, ecodes
@@ -103,6 +104,10 @@ class LedStatusManager:
         self.num_leds = 0
         self.global_brightness = 31  # APA102 グローバル輝度 0-31
         self.colors = led_settings.get("colors", {}) if led_settings else {}
+        self._boot_self_test = bool(led_settings.get("boot_self_test", True)) if led_settings else False
+        # ブートシーケンス用スレッドと GPIO コールバックスレッドからの
+        # 同時 xfer2 を防ぐためのロック。
+        self._spi_lock = threading.Lock()
 
         if not led_settings or not led_settings.get("enabled", False):
             logging.info("LED disabled by config.")
@@ -122,8 +127,13 @@ class LedStatusManager:
             spi_hz = int(led_settings.get("spi_hz", 4000000))
             # APA102 のグローバル輝度フィールドは 5bit (0-31)。
             # config 側は 0-255 で書けるよう 8bit→5bit にマッピング。
-            br_8bit = max(0, min(255, int(led_settings.get("brightness", 50))))
-            self.global_brightness = max(1, br_8bit * 31 // 255)
+            # brightness=0 は意図的な完全消灯として 0/31 を許容する。
+            # 1 以上の場合は丸めで 0/31 にならないよう最低 1/31 を保証する。
+            br_8bit = max(0, min(255, int(led_settings.get("brightness", 25))))
+            if br_8bit == 0:
+                self.global_brightness = 0
+            else:
+                self.global_brightness = max(1, br_8bit * 31 // 255)
 
             self.spi = spidev.SpiDev()
             self.spi.open(spi_bus, spi_device)
@@ -137,8 +147,8 @@ class LedStatusManager:
                 self.num_leds, spi_bus, spi_device, spi_hz, self.global_brightness,
             )
 
-            if led_settings.get("boot_self_test", True):
-                self._self_test()
+            # 起動セルフテストは run_boot_sequence() で別スレッド実行する。
+            # __init__ では走らせない (呼び出し側が初期状態と順序を決められるように)。
         except Exception as e:
             logging.error("LED init failed: %s", e)
             self.enabled = False
@@ -157,8 +167,51 @@ class LedStatusManager:
         self._fill((0, 0, 0))
         logging.info("LED self-test complete.")
 
+    def run_boot_sequence(self, final_state_callable=None):
+        """
+        起動シーケンスを別スレッドで実行する (呼び出しは即座に返る)。
+
+        セルフテスト (`boot_self_test=true` の場合) を走らせ、その完了後に
+        `final_state_callable` を呼んで通常状態の色を表示する。これにより:
+
+        - 呼び出し側 (KeyBowManager.__init__) と asyncio イベントループ起動を
+          ブロックしない (Copilot レビュー指摘 #2 への対応)
+        - セルフテスト中の途中状態と通常状態が競合しないよう順序を保証する
+
+        セルフテストが無効・LED 無効・SPI 不在の場合は、`final_state_callable`
+        があればその場で同期実行する (スレッドを起こさない)。
+        """
+        if not self.enabled:
+            if final_state_callable:
+                try:
+                    final_state_callable()
+                except Exception as e:
+                    logging.error("Final state callable failed: %s", e)
+            return
+
+        if not self._boot_self_test:
+            if final_state_callable:
+                try:
+                    final_state_callable()
+                except Exception as e:
+                    logging.error("Final state callable failed: %s", e)
+            return
+
+        def _runner():
+            try:
+                self._self_test()
+            except Exception as e:
+                logging.error("Self-test failed: %s", e)
+            if final_state_callable:
+                try:
+                    final_state_callable()
+                except Exception as e:
+                    logging.error("Final state callable failed: %s", e)
+
+        threading.Thread(target=_runner, name="LedBootSequence", daemon=True).start()
+
     def _fill(self, rgb):
-        """全 LED を rgb (r,g,b) で塗る。"""
+        """全 LED を rgb (r,g,b) で塗る。スレッドセーフ。"""
         if not self.enabled or self.spi is None:
             return
         try:
@@ -172,7 +225,8 @@ class LedStatusManager:
                 data += [led_header, b, g, r]
             # end frame: 各 LED 後の clock latching に必要 (ceil(N/16) バイト以上)
             data += [0xFF] * ((self.num_leds + 15) // 16)
-            self.spi.xfer2(data)
+            with self._spi_lock:
+                self.spi.xfer2(data)
         except Exception as e:
             logging.error("LED fill failed (rgb=%s): %s", tuple(rgb), e)
 
@@ -566,8 +620,11 @@ class KeyBowManager:
         # === LED初期化 ===
         # LED 制御は LedStatusManager に委譲する。失敗しても主機能には影響しない。
         self.led = LedStatusManager(CONFIG.get("led_settings", {}))
-        # 初期状態 (REMAP_ENABLED) を反映
-        self.led.show_remap_state(REMAP_ENABLED)
+        # 起動シーケンス: 別スレッドでセルフテスト → 完了後に初期状態を表示。
+        # __init__ をブロックせず、セルフテストと初期状態の競合も防ぐ。
+        self.led.run_boot_sequence(
+            final_state_callable=lambda: self.led.show_remap_state(REMAP_ENABLED)
+        )
 
         logging.info(f"KeyBow initialized. Hold time: {hold_time}s")
 
