@@ -4,7 +4,7 @@
 
 ## プロジェクト概要
 
-Raspberry Pi を **USB HID プロキシ**として動作させ、Pi に繋いだ複数のキーボード・マウスを 1 つの合成 HID デバイスとしてホスト PC に出力する。**Python (キーボード+GPIO+LED) + Rust (マウス) + systemd/ConfigFS (HID ガジェット)** の三層構成。
+Raspberry Pi を **USB HID プロキシ**として動作させ、Pi に繋いだ複数のキーボード・マウスを 1 つの合成 HID デバイスとしてホスト PC に出力する。**Python (キーボード+GPIO+LED) + Rust (マウス) + systemd/ConfigFS (HID ガジェット)** の三層構成。物理ターゲットは **Pimoroni Keybow Mini** (3 キー + APA102 RGB LED 3 個、SPI 駆動)。
 
 ## リポジトリレイアウト
 
@@ -19,7 +19,7 @@ Rpi-Multi-Device-HID-Proxy/
 │   ├── BUILD.md           # ビルド手順
 │   ├── CONFIGURATION.md   # config.json と udev のリファレンス
 │   ├── DEVELOPMENT.md     # 開発者ガイド（拡張方法、テスト戦略、PR ルール）
-│   ├── HARDWARE.md        # 物理配線（GPIO / NeoPixel / USB OTG）
+│   ├── HARDWARE.md        # 物理配線（GPIO / Keybow Mini APA102 / USB OTG）
 │   └── INSTALL.md         # インストール手順
 ├── rust/mouse_proxy_rs/   # マウスプロキシ（Rust + tokio、単一ファイル実装）
 ├── scripts/               # ライフサイクル系シェルスクリプト
@@ -63,9 +63,9 @@ sudo journalctl -u multi-hid-gadget.service
 
 1. **マウス HID 出力が `/dev/hidg1` ハードコード**: `systemd/mouse-proxy@.service:8` が全インスタンスで `/dev/hidg1` を指定しており、複数マウス時の自動分配ロジックは現状コードに無い。`config.json` で `mouse_outputs` を複数並べても自動では使われない。
 2. **hidg 番号の割当順**: `scripts/setup_hid_gadget.sh:146-200` がキーボード関数を先、マウス関数を後に作るため、標準構成では `/dev/hidg0` = Keyboard、`/dev/hidg1`,`/dev/hidg2` = Mouse。
-3. **GPIO ピン**: Btn1=GPIO 6、Btn2=GPIO 22、Btn3=GPIO 17、LED=GPIO 18。`src/keyboard_proxy.py:446-458, 467` でハードコード（LED ピンのみ `config.json` で上書き可）。
+3. **GPIO ピン**: Btn1=GPIO 6、Btn2=GPIO 22、Btn3=GPIO 17（`src/keyboard_proxy.py` の `KeyBowManager.__init__` でハードコード）。**LED は GPIO 直結ではなく SPI バス経由 (Pimoroni Keybow Mini の APA102)**。`/dev/spidev0.0` (= GPIO10/MOSI + GPIO11/SCLK) を `python3-spidev` で叩く実装。`led_settings.spi_bus / spi_device` で切替可能。
 4. **HID レポートサイズ**: Keyboard=8 バイト（modifier/reserved/key×6）、Mouse=7 バイト（button/X i16/Y i16/wheel i16、リトルエンディアン）。**水平ホイール (REL_HWHEEL) 非対応**（`rust/mouse_proxy_rs/src/main.rs:232`）。
-5. **設定ファイル検索順**: `/etc/multi-hid-proxy/config.json` → スクリプト同階層 → CWD（`src/proxy_core.py:84-89`、`scripts/setup_hid_gadget.sh:40-48`）。`load_config` は組み込みデフォルトと再帰マージするため、欠落キーは補完される。
+5. **設定ファイル検索順**: `/etc/multi-hid-proxy/config.json` → スクリプト同階層 → CWD（`src/proxy_core.py:84-89`、`scripts/setup_hid_gadget.sh:40-48`）。`load_config` は組み込みデフォルト (`DEFAULT_CONFIG`) とユーザー設定を **深い再帰マージ** する。ネスト辞書同士は再帰、それ以外は上書き。`DEFAULT_CONFIG` に無いキーもユーザー設定からそのまま取り込まれる (`src/proxy_core.py:_deep_merge`)。
 6. **キーボード grab で排他取得**: `src/keyboard_proxy.py:142` の `device.grab()` により Pi のローカル端末からは入力が見えなくなる。デバッグ時は注意。
 7. **テスト基盤なし**: 自動テストは未整備。動作確認は実機での手動検証に依存。
 8. **systemd 起動順**: `systemd-modules-load (dwc2,libcomposite)` → `multi-hid-gadget` (`Before=sysinit.target`, oneshot) → `keyboard-proxy` ／ udev → `mouse-proxy@event*`。

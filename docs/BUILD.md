@@ -32,10 +32,11 @@ sudo apt install gcc-aarch64-linux-gnu
 sudo apt install python3-evdev python3-gpiozero
 ```
 
-オプション（LED機能を使用する場合）:
+オプション（Keybow Mini の APA102 LED を使用する場合）:
 
 ```bash
-sudo pip3 install --break-system-packages rpi_ws281x
+sudo apt install python3-spidev
+# /boot/firmware/config.txt に dtparam=spi=on を追記して再起動も必要
 ```
 
 ## ビルド方法

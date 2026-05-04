@@ -11,7 +11,7 @@ Raspberry Pi を使用して、複数のキーボード・マウスを1つのUSB
 - **マルチデバイス対応**: 複数のキーボード・マウスを同時に接続可能
 - **キーリマップ**: キーボード入力のリマッピング機能
 - **GPIOボタン制御**: 物理ボタンによるモード切替やマクロ実行
-- **NeoPixel LED**: 状態表示用LEDインジケータ
+- **APA102 LED (Pimoroni Keybow Mini)**: SPI 経由で駆動する状態表示用 RGB LED
 - **高性能マウスプロキシ**: Rust実装による低レイテンシなマウス中継
 
 ### 対応デバイス
@@ -82,7 +82,7 @@ sudo reboot
 - [ビルドガイド](docs/BUILD.md) - ソースからのビルド方法
 - [設定ガイド](docs/CONFIGURATION.md) - 設定ファイルの詳細
 - [アーキテクチャ](docs/ARCHITECTURE.md) - 三層構造・起動順序・データフロー・HID レポート仕様
-- [ハードウェア配線ガイド](docs/HARDWARE.md) - GPIO ボタン・NeoPixel LED・USB OTG の物理配線
+- [ハードウェア配線ガイド](docs/HARDWARE.md) - GPIO ボタン・APA102 LED (Keybow Mini)・USB OTG の物理配線
 - [開発者ガイド](docs/DEVELOPMENT.md) - 拡張方法・テスト戦略・PR ガイドライン
 - [AGENTS.md](AGENTS.md) - AI コーディングエージェント向けの最短サマリ
 

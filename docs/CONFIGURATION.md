@@ -16,9 +16,12 @@
   },
   "led_settings": {
     "enabled": true,
-    "gpio_pin": 18,
     "led_count": 3,
+    "spi_bus": 0,
+    "spi_device": 0,
+    "spi_hz": 4000000,
     "brightness": 50,
+    "boot_self_test": true,
     "colors": {
       "remap_enabled": [0, 255, 0],
       "remap_disabled": [255, 0, 0]
@@ -52,16 +55,21 @@ GPIOボタンの動作設定。
 
 ### led_settings
 
-NeoPixel LEDの設定。
+Pimoroni Keybow Mini の APA102 LED の設定（SPI 駆動）。
 
 | パラメータ | 説明 | デフォルト |
 |-----------|------|-----------|
 | `enabled` | LED機能の有効/無効 | true |
-| `gpio_pin` | LEDデータピン（GPIO番号） | 18 |
 | `led_count` | LED数 | 3 |
-| `brightness` | 明るさ（0-255） | 50 |
+| `spi_bus` | 利用する SPI バス番号（`/dev/spidevX.Y` の X） | 0 |
+| `spi_device` | 利用する SPI デバイス番号（`/dev/spidevX.Y` の Y） | 0 |
+| `spi_hz` | SPI クロック (Hz)。APA102 は 1〜8MHz が安定 | 4000000 |
+| `brightness` | 明るさ（0-255）。APA102 のグローバル輝度 5bit にマップ | 50 |
+| `boot_self_test` | 起動時に赤→緑→青のセルフテストを流すか。ハード結線確認に有用 | true |
 | `colors.remap_enabled` | リマップ有効時の色 [R,G,B] | [0,255,0] (緑) |
 | `colors.remap_disabled` | リマップ無効時の色 [R,G,B] | [255,0,0] (赤) |
+
+SPI が無効の場合は LED が動きません。`/boot/firmware/config.txt` に `dtparam=spi=on` が必要です（`scripts/install.sh` で自動追記）。LED が点灯しないときの切り分けは [HARDWARE.md §6.2.1](HARDWARE.md#621-led-が点灯しないときのチェック順序) を参照してください。
 
 ### logging
 

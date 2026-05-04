@@ -17,7 +17,7 @@
 #   - python3-evdev パッケージ
 #   - jq コマンド
 #   - python3-gpiozero（オプション、GPIO機能用）
-#   - rpi_ws281x（オプション、LED機能用）
+#   - python3-spidev（オプション、Keybow Mini の APA102 LED 制御用、SPI 有効化が必要）
 #
 # 使用方法:
 #   sudo ./install.sh
@@ -96,50 +96,43 @@ if ! python3 -c "import gpiozero" &> /dev/null; then
 fi
 
 # -----------------------------------------------------------------------------
-# 4. rpi_ws281x（オプション、自動インストール試行）
+# 4. python3-spidev（オプション、Keybow Mini APA102 LED 制御用）
 # -----------------------------------------------------------------------------
-# rpi_ws281xはNeoPixel LED制御に使用されます
-# リマップ状態の視覚的フィードバックを提供
-if ! python3 -c "import rpi_ws281x" &> /dev/null; then
-    echo "警告: Pythonライブラリ 'rpi_ws281x' が見つかりません。"
+# Pimoroni Keybow Mini の APA102 RGB LED を SPI 経由で駆動するために使用します。
+# リマップ状態 (US→JIS) の視覚的フィードバックを提供します。
+if ! python3 -c "import spidev" &> /dev/null; then
+    echo "情報: Pythonライブラリ 'spidev' が見つかりません。"
     echo "LED制御機能を使用する場合はインストールが必要です。"
     echo "自動インストールを試みます..."
-    
-    # pip3の存在確認とインストール
-    if ! command_exists pip3 && ! python3 -m pip --version &> /dev/null; then
-        echo "pip3 が見つかりません。python3-pip をインストールしています..."
-        if apt-get install -y python3-pip; then
-            echo "python3-pip のインストールが完了しました。"
-        else
-            echo "警告: python3-pip のインストールに失敗しました。"
-            echo "手動でインストールしてください: sudo apt-get install python3-pip"
-            echo "LED機能は無効化されますが、他の機能は動作します。"
-        fi
-    fi
-    
-    # rpi_ws281xのビルドに必要なsconsのインストール
-    if ! command_exists scons; then
-        echo "ビルドツール 'scons' をインストールしています..."
-        apt-get install -y scons
-    fi
-    
-    # rpi_ws281xをシステムワイドにインストール
-    # --break-system-packages: Python 3.11以降で外部管理されたパッケージへの
-    # インストールを許可するオプション
-    # systemdサービスはシステムのPython環境を使用するため、
-    # システムワイドなインストールが必要
-    if python3 -m pip install --break-system-packages rpi_ws281x 2>/dev/null; then
-        echo "rpi_ws281x のインストールが完了しました。"
-    elif pip3 install --break-system-packages rpi_ws281x 2>/dev/null; then
-        echo "rpi_ws281x のインストールが完了しました。"
+    if apt-get install -y python3-spidev; then
+        echo "python3-spidev のインストールが完了しました。"
     else
-        echo "警告: rpi_ws281x のインストールに失敗しました。"
+        echo "警告: python3-spidev のインストールに失敗しました。"
         echo "LED機能は無効化されますが、他の機能は動作します。"
-        echo "手動でインストールする場合:"
-        echo "  sudo apt-get install python3-pip"
-        echo "  sudo python3 -m pip install --break-system-packages rpi_ws281x"
-        # LED機能はオプショナルなので、失敗してもexitしない
+        echo "手動でインストールしてください: sudo apt-get install python3-spidev"
     fi
+fi
+
+# -----------------------------------------------------------------------------
+# 5. SPI バスの有効化 (Keybow Mini APA102 LED 用)
+# -----------------------------------------------------------------------------
+# /boot/firmware/config.txt に dtparam=spi=on が無ければ追記する。
+# 反映には Pi の再起動が必要。
+BOOT_CONFIG="/boot/firmware/config.txt"
+if [ -f "$BOOT_CONFIG" ]; then
+    if grep -qE "^[[:space:]]*dtparam=spi=on" "$BOOT_CONFIG"; then
+        echo "SPI は既に有効化されています。"
+    elif grep -qE "^[[:space:]]*#?[[:space:]]*dtparam=spi=" "$BOOT_CONFIG"; then
+        echo "SPI 設定を有効化します ($BOOT_CONFIG を書き換え)..."
+        sudo sed -i -E 's/^[[:space:]]*#?[[:space:]]*dtparam=spi=.*/dtparam=spi=on/' "$BOOT_CONFIG"
+        echo "  -> 反映には再起動が必要です。"
+    else
+        echo "SPI を有効化します ($BOOT_CONFIG に dtparam=spi=on を追記)..."
+        echo "dtparam=spi=on" | sudo tee -a "$BOOT_CONFIG" > /dev/null
+        echo "  -> 反映には再起動が必要です。"
+    fi
+else
+    echo "警告: $BOOT_CONFIG が見つかりません。SPI を手動で有効化してください。"
 fi
 
 echo "依存関係は満たされています。"
