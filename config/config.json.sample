@@ -7,9 +7,12 @@
   },
   "led_settings": {
     "enabled": true,
-    "gpio_pin": 18,
     "led_count": 3,
+    "spi_bus": 0,
+    "spi_device": 0,
+    "spi_hz": 4000000,
     "brightness": 50,
+    "boot_self_test": true,
     "colors": {
       "remap_enabled": [0, 255, 0],
       "remap_disabled": [255, 0, 0]

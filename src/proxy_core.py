@@ -50,8 +50,44 @@ DEFAULT_CONFIG = {
     "hid_paths": {
         "keyboard": "/dev/hidg0",                    # キーボード出力パス
         "mouse_outputs": ["/dev/hidg1", "/dev/hidg2"]  # マウス出力パス（複数対応）
+    },
+
+    # APA102 LED (Pimoroni Keybow Mini) の設定
+    # リマップ機能 (US→JIS) の有効/無効状態を視覚通知する
+    # SPI 経由 (GPIO10/MOSI = データ、GPIO11/SCLK = クロック)
+    "led_settings": {
+        "enabled": True,            # LED 機能を使うか
+        "led_count": 3,             # LED 個数 (Keybow Mini は 3)
+        "spi_bus": 0,               # /dev/spidev{spi_bus}.{spi_device}
+        "spi_device": 0,            # Keybow Mini は /dev/spidev0.0
+        "spi_hz": 4000000,          # SPI クロック (Hz)。APA102 は 4-8MHz が安定
+        "brightness": 50,           # 明るさ (0-255)、APA102 グローバル輝度 5bit にマップ
+        "boot_self_test": True,     # 起動時に赤→緑→青の動作確認シーケンスを流す
+        "colors": {
+            "remap_enabled": [0, 255, 0],   # リマップ有効: 緑
+            "remap_disabled": [255, 0, 0]   # リマップ無効: 赤
+        }
     }
 }
+
+
+def _deep_merge(base, override):
+    """
+    base 辞書に override 辞書を再帰的にマージします（破壊的操作）。
+
+    base にも override にも同名キーが辞書として存在する場合は再帰、
+    それ以外の場合は override の値で上書きします。
+
+    旧実装は DEFAULT_CONFIG のキーしか取り込まなかったため、
+    ユーザー設定にだけ存在するキー (例: led_settings) が黙って捨てられていました。
+    ここでは override 主導でループし、ユーザー設定の値を確実に反映します。
+    """
+    for key, value in override.items():
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+            _deep_merge(base[key], value)
+        else:
+            base[key] = value
+    return base
 
 
 def load_config(config_path=None):
@@ -73,8 +109,9 @@ def load_config(config_path=None):
               設定ファイルが見つからない場合はデフォルト設定を返す。
     
     Note:
-        設定のマージは浅いマージ（shallow merge）ではなく、
-        ネストされた辞書も再帰的にマージされます。
+        設定のマージは深い再帰マージで、
+        ネストされた辞書同士は再帰的にマージされ、
+        DEFAULT_CONFIG に無いキーもユーザー設定からそのまま取り込まれます。
     """
     # 引数でパスが指定されていない場合、複数の場所を検索
     if config_path is None:
@@ -109,20 +146,11 @@ def load_config(config_path=None):
             with open(config_path, 'r', encoding='utf-8') as f:
                 user_config = json.load(f)
                 print(f"[Proxy-Core] Loaded config: {config_path}")
-                
-                # 設定のマージ処理
-                # ユーザー設定で指定された項目のみをデフォルト設定に上書き
-                for key in config:
-                    if key not in user_config:
-                        continue  # ユーザー設定にないキーはスキップ
-                    
-                    # ネストされた辞書の場合は、内部の値を更新（部分的な上書き）
-                    if isinstance(config[key], dict) and isinstance(user_config[key], dict):
-                        config[key].update(user_config[key])
-                    else:
-                        # 辞書以外の値は完全に置き換え
-                        config[key] = user_config[key]
-                        
+
+                # 再帰的なマージ処理。
+                # ユーザー設定にだけ存在するキーも保持される。
+                _deep_merge(config, user_config)
+
                 return config
         else:
             logging.warning(f"Config file {config_path} not found. Using defaults.")

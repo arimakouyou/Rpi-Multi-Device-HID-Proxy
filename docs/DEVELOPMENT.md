@@ -247,7 +247,19 @@ sudo udevadm trigger
 - [ ] GPIO ピン・LED 配線・ボタン動作を変えた場合、`HARDWARE.md` も更新
 - [ ] 機能変更時は `README.md` の概要も必要なら更新
 
-### 9.4 Critical Protocols（CLAUDE.md より抜粋）
+### 9.4 LED 実装の歴史的経緯（重要）
+
+本プロジェクトの LED 実装は途中で **誤った方向に分岐していた時期**があります。元々のターゲットは **Pimoroni Keybow Mini** (APA102 / SPI 駆動) で、コード上もクラス名は `KeyBowManager` のまま残っていますが、git commit `cfc1ee0` (2026-01-29) で `rpi_ws281x` (WS2812B 専用) が誤って導入され、ドキュメント・サンプル設定・install スクリプト全体が WS2812B 前提で書かれた期間がありました。実機 (Keybow Mini) では当然光らず、長期間 LED が機能していませんでした。
+
+2026-05-04 の修正で **APA102 / `python3-spidev` ベースに作り直し**、`/boot/firmware/config.txt` の `dtparam=spi=on` 自動追記も追加しました。LED 周りを編集する際は:
+
+- `LedStatusManager` クラス (`src/keyboard_proxy.py`) は **APA102 プロトコルを spidev で直叩き**する実装。WS2812B 用ライブラリに戻さない。
+- 設定キーは `gpio_pin` ではなく `spi_bus` / `spi_device` / `spi_hz`。
+- 「LED が光らない」と言われたら、**まず SPI が有効か** (`ls /dev/spidev0.*`) を確認。
+
+別の WS2812B ストリップを使いたい場合は `LedStatusManager` を別実装に差し替えてください。
+
+### 9.5 Critical Protocols（CLAUDE.md より抜粋）
 
 リポジトリの最上位（または `~/CLAUDE.md`）に AI コーディングエージェント向けのルールがあります。人間の開発者にも有用な要点:
 

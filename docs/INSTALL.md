@@ -7,7 +7,7 @@
 - Raspberry Pi Zero 2W（推奨）またはOTG対応のRaspberry Pi
 - microSDカード（8GB以上）
 - USB OTGケーブル（データ通信対応）
-- （オプション）NeoPixel LED、GPIOボタン
+- （オプション）Pimoroni Keybow Mini（3 キー + APA102 LED 3 個、SPI 経由）
 
 ### ソフトウェア
 
