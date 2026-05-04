@@ -24,13 +24,17 @@ Raspberry Pi を使用して、複数のキーボード・マウスを1つのUSB
 
 ```
 Rpi-Multi-Device-HID-Proxy/
+├── AGENTS.md               # AI コーディングエージェント向けサマリ
 ├── config/                 # 設定ファイル
 │   ├── config.json
 │   └── config.json.sample
 ├── docs/                   # ドキュメント
+│   ├── ARCHITECTURE.md
 │   ├── BUILD.md
-│   ├── INSTALL.md
-│   └── CONFIGURATION.md
+│   ├── CONFIGURATION.md
+│   ├── DEVELOPMENT.md
+│   ├── HARDWARE.md
+│   └── INSTALL.md
 ├── rust/                   # Rust ソースコード（マウスプロキシ）
 │   └── mouse_proxy_rs/
 ├── scripts/                # シェルスクリプト
@@ -77,6 +81,10 @@ sudo reboot
 - [インストールガイド](docs/INSTALL.md) - インストール手順と要件
 - [ビルドガイド](docs/BUILD.md) - ソースからのビルド方法
 - [設定ガイド](docs/CONFIGURATION.md) - 設定ファイルの詳細
+- [アーキテクチャ](docs/ARCHITECTURE.md) - 三層構造・起動順序・データフロー・HID レポート仕様
+- [ハードウェア配線ガイド](docs/HARDWARE.md) - GPIO ボタン・NeoPixel LED・USB OTG の物理配線
+- [開発者ガイド](docs/DEVELOPMENT.md) - 拡張方法・テスト戦略・PR ガイドライン
+- [AGENTS.md](AGENTS.md) - AI コーディングエージェント向けの最短サマリ
 
 ## ライセンス
 
